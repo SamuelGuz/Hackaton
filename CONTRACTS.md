@@ -524,24 +524,23 @@ INSERT INTO system_settings (key, value, description) VALUES
 - `value` es JSONB para permitir tipos mixtos (boolean, number, string, array) sin migrar el schema.
 
 ---
-
+ 
 ## 2. Contratos de la API (FastAPI)
-
+ 
 > **Base URL:** `https://churn-oracle-api.{deploy}.app/api/v1`
 > **Auth:** API key en header `X-API-Key` (single token compartido para el demo)
 > **Formato:** todos los endpoints retornan JSON. Errores siguen el formato `{"error": "code", "message": "human readable"}`.
-
+ 
 ### 2.1 Accounts (Persona 1)
-
+ 
 #### `GET /accounts`
 Lista de cuentas con health snapshot.
-
+ 
 **Query params:**
 - `health_status` (opcional): filtrar por estado
 - `industry` (opcional)
 - `limit` (default 200)
 - `offset` (default 0)
-
 **Response 200:**
 ```json
 {
@@ -554,28 +553,20 @@ Lista de cuentas con health snapshot.
       "plan": "growth",
       "arr_usd": 48000.00,
       "champion_name": "María Pérez",
-      "csm": {
-        "id": "uuid",
-        "name": "Carlos López",
-        "slack_handle": "@carlos",
-        "email": "carlos@acmesaas.io"
-      },
+      "csm_assigned": "Carlos López",
       "contract_renewal_date": "2026-08-15T00:00:00Z",
       "health_status": "at_risk",
       "churn_risk_score": 73,
-      "expansion_score": 12,
-      "current_nps_score": 6,
-      "current_nps_category": "detractor",
-      "last_nps_at": "2026-04-12T00:00:00Z"
+      "expansion_score": 12
     }
   ],
   "total": 200
 }
 ```
-
+ 
 #### `GET /accounts/{account_id}`
 Detalle completo de una cuenta.
-
+ 
 **Response 200:**
 ```json
 {
@@ -596,33 +587,15 @@ Detalle completo de una cuenta.
     "role": "VP Operations",
     "changed_recently": false
   },
-  "csm": {
-    "id": "uuid",
-    "name": "Carlos López",
-    "email": "carlos@acmesaas.io",
-    "slack_handle": "@carlos",
-    "slack_user_id": "U01ABC123",
-    "phone": "+573001112233",
-    "role": "senior_csm"
-  },
+  "csm_assigned": "Carlos López",
   "last_qbr_date": "2026-02-10T00:00:00Z",
-  "nps": {
-    "current_score": 6,
-    "current_category": "detractor",
-    "last_submitted_at": "2026-04-12T00:00:00Z",
-    "last_feedback": "El módulo de reportes sigue lento, lo reporté hace meses.",
-    "history_count": 4
-  },
   "health": {
     "status": "at_risk",
     "churn_risk_score": 73,
-    "previous_churn_risk_score": 48,
-    "trend_direction": "worsening",
     "top_signals": [
       {"signal": "logins_drop_pct", "value": 62, "severity": "high"},
       {"signal": "tickets_unresolved", "value": 2, "severity": "medium"},
-      {"signal": "days_since_qbr", "value": 88, "severity": "medium"},
-      {"signal": "nps_score", "value": 6, "severity": "high"}
+      {"signal": "days_since_qbr", "value": 88, "severity": "medium"}
     ],
     "predicted_churn_reason": "Caída sostenida de uso + tickets sin resolver del módulo de reportes",
     "crystal_ball_reasoning": "...",
@@ -631,16 +604,13 @@ Detalle completo de una cuenta.
   }
 }
 ```
-
-**Notas:**
-- `previous_churn_risk_score` y `trend_direction` (`improving` | `stable` | `worsening`) se calculan en el endpoint comparando el snapshot actual contra el penúltimo row de `account_health_history`.
-- `nps.history_count` es la cantidad total de respuestas NPS de la cuenta. El detalle completo está en `GET /accounts/{id}/nps`.
-
+ 
 #### `GET /accounts/{account_id}/timeline`
 Timeline de eventos para el Health Dashboard.
 
 **Nota (implementación extendida):** además de `usage_event`, `ticket` y `conversation`, el backend puede incluir `nps_response`, `health_history` e `intervention` con el mismo shape (`type`, `subtype`, `timestamp`, `summary`) para enriquecer el dashboard.
 
+ 
 **Response 200:**
 ```json
 {
@@ -667,16 +637,16 @@ Timeline de eventos para el Health Dashboard.
   ]
 }
 ```
-
+ 
 ---
-
+ 
 ### 2.2 Agents (Persona 2)
-
+ 
 #### `POST /agents/crystal-ball/{account_id}`
 Ejecuta el Crystal Ball Agent sobre una cuenta. Actualiza `account_health_snapshot`.
-
+ 
 **Body:** vacío o `{"force_refresh": true}` para ignorar cache.
-
+ 
 **Response 200:**
 ```json
 {
@@ -692,10 +662,10 @@ Ejecuta el Crystal Ball Agent sobre una cuenta. Actualiza `account_health_snapsh
   "computed_at": "2026-05-09T17:30:00Z"
 }
 ```
-
+ 
 #### `POST /agents/expansion/{account_id}`
 Ejecuta el Expansion Agent.
-
+ 
 **Response 200:**
 ```json
 {
@@ -708,21 +678,20 @@ Ejecuta el Expansion Agent.
   "computed_at": "2026-05-09T17:30:00Z"
 }
 ```
-
+ 
 #### `POST /agents/intervention/{account_id}`
 Genera (sin lanzar) una intervención recomendada para la cuenta.
-
+ 
 **Body:**
 ```json
 {
   "trigger_reason": "churn_risk_high"
 }
 ```
-
+ 
 **Response 200:**
 ```json
 {
-  "intervention_id": "uuid",
   "account_id": "uuid",
   "trigger_reason": "churn_risk_high",
   "recommended_channel": "voice_call",
@@ -732,26 +701,17 @@ Genera (sin lanzar) una intervención recomendada para la cuenta.
   "playbook_id_used": "uuid",
   "playbook_success_rate_at_decision": 0.72,
   "agent_reasoning": "Para cuentas fintech mid-market con caída de logins y tickets negativos, el playbook P-007 ha tenido 72% de éxito. Voz personal supera a email en este perfil.",
-  "confidence": 0.81,
-  "requires_approval": true,
-  "approval_reasoning": "Canal voice_call + ARR > 25k → requiere revisión humana antes del dispatch.",
-  "status": "pending_approval",
-  "auto_approved": false
+  "confidence": 0.81
 }
 ```
-
-**Notas críticas sobre `requires_approval`:**
-- Lo decide el **Intervention Engine** (Persona 2). Lógica recomendada: `requires_approval = true` si `channel ∈ {voice_call, whatsapp}` OR `arr_usd > 25000` OR `confidence < 0.75`. Persona 2 puede ajustarla pero debe documentarla en `approval_reasoning`.
-- FastAPI persiste la intervención y resuelve el `status` inicial según `system_settings.auto_approval_enabled` (ver flujo en sección 1, tabla `interventions`).
-- Si `auto_approved = true` o `requires_approval = false`, el frontend puede mostrar "lista para dispatch". Si `status = 'pending_approval'`, el frontend debe mostrarla en la cola de aprobaciones.
-
+ 
 ---
-
+ 
 ### 2.3 Closed-Loop (Persona 2)
-
+ 
 #### `POST /interventions/{intervention_id}/outcome`
 Registra el resultado de una intervención. Dispara la actualización del playbook memory.
-
+ 
 **Body:**
 ```json
 {
@@ -759,7 +719,7 @@ Registra el resultado de una intervención. Dispara la actualización del playbo
   "outcome_notes": "Cliente respondió en 2 horas, agendó renovación"
 }
 ```
-
+ 
 **Response 200:**
 ```json
 {
@@ -773,10 +733,10 @@ Registra el resultado de una intervención. Dispara la actualización del playbo
   }
 }
 ```
-
+ 
 #### `GET /playbooks`
 Lista de playbooks con sus stats. Para visualizar el closed-loop en frontend.
-
+ 
 **Response 200:**
 ```json
 {
@@ -795,10 +755,10 @@ Lista de playbooks con sus stats. Para visualizar el closed-loop en frontend.
   ]
 }
 ```
-
+ 
 #### `GET /playbooks/{playbook_id}/history`
 Historia de cambios de un playbook (para mostrar evolución).
-
+ 
 **Response 200:**
 ```json
 {
@@ -809,14 +769,14 @@ Historia de cambios de un playbook (para mostrar evolución).
   ]
 }
 ```
-
+ 
 ---
-
+ 
 ### 2.4 Dispatch (Persona 3)
-
+ 
 #### `POST /dispatch-intervention`
 **Endpoint crítico.** Lanza la intervención al canal real vía Make.
-
+ 
 **Body:**
 ```json
 {
@@ -831,7 +791,7 @@ Historia de cambios de un playbook (para mostrar evolución).
   }
 }
 ```
-
+ 
 **Response 202 (accepted):**
 ```json
 {
@@ -842,7 +802,7 @@ Historia de cambios de un playbook (para mostrar evolución).
   "estimated_delivery_seconds": 15
 }
 ```
-
+ 
 **Response 500:**
 ```json
 {
@@ -852,10 +812,10 @@ Historia de cambios de un playbook (para mostrar evolución).
   "fallback_audio_url": "https://..."
 }
 ```
-
+ 
 #### `POST /dispatch-intervention/status/{intervention_id}`
 Consulta el estado de delivery (para que el frontend muestre el "✓ entregado").
-
+ 
 **Response 200:**
 ```json
 {
@@ -873,8 +833,7 @@ Consulta el estado de delivery (para que el frontend muestre el "✓ entregado")
   }
 }
 ```
-
-
+ 
 ---
  
 ## 2.5 Arquitectura de agentes (Persona 2)
@@ -885,12 +844,15 @@ Consulta el estado de delivery (para que el frontend muestre el "✓ entregado")
  
 | Decisión | Valor |
 |---|---|
-| Framework | Anthropic SDK directo (`anthropic` Python package) |
-| Modelo principal | `claude-sonnet-4-6` (reasoning) |
-| Modelo auxiliar | `claude-haiku-4-5-20251001` (sentiment, summarization) |
+| Framework | OpenAI Python SDK (`openai` package) |
+| Modelo principal | `gpt-4o` (reasoning loop) |
+| Modelo auxiliar | `gpt-4o-mini` (sentiment, summarization) |
+| Modelo solo para data sintética (Persona 1) | `gemini-2.5-pro` via Google SDK (one-shot, fuera del runtime) |
 | Comunicación entre agentes | Solo vía base de datos. No invocaciones directas. |
 | Memoria conversacional | No. Cada invocación es stateless. |
 | Logging | Solo resultado final. NO se loguean turns intermedios. |
+| Tool calling | OpenAI function calling (`tools` parameter) con `parallel_tool_calls: false` para predictibilidad |
+| Structured output | OpenAI structured outputs (`response_format` con JSON schema) para el final analysis |
  
 ### 2.5.2 Tipo de agente por componente
  
@@ -919,11 +881,12 @@ Consulta el estado de delivery (para que el frontend muestre el "✓ entregado")
 **Configuración estándar:**
 ```python
 AGENT_CONFIG = {
-    "model": "claude-sonnet-4-6",
+    "model": "gpt-4o",
     "max_tokens": 4096,
     "max_turns": 10,
     "timeout_seconds": 60,
     "temperature": 0.3,  # baja para consistencia
+    "parallel_tool_calls": False,  # determinístico
 }
 ```
  
@@ -983,8 +946,8 @@ Persona 2 implementa estas tools como funciones Python que el agente puede llama
 ```
 **Output:** Lista de conversaciones con sentiment.
  
-#### `analyze_sentiment_batch` *(usa Haiku)*
-**Descripción:** Analiza sentiment de un batch de textos. Usa Haiku internamente para ser rápido.
+#### `analyze_sentiment_batch` *(usa GPT-4o-mini)*
+**Descripción:** Analiza sentiment de un batch de textos. Usa GPT-4o-mini internamente para ser rápido y barato.
 **Input schema:**
 ```json
 {
@@ -993,9 +956,9 @@ Persona 2 implementa estas tools como funciones Python que el agente puede llama
 }
 ```
 **Output:** Array de `{text_index, sentiment, confidence}`.
-**Notas:** Esta tool internamente llama a `claude-haiku-4-5-20251001` con un prompt corto. No expone Haiku como tool genérica al agente; es una utilidad de sentiment.
+**Notas:** Esta tool internamente llama a `gpt-4o-mini` con un prompt corto. No expone el modelo auxiliar como tool genérica al agente; es una utilidad de sentiment.
  
-#### `summarize_text` *(usa Haiku)*
+#### `summarize_text` *(usa GPT-4o-mini)*
 **Descripción:** Resume un texto largo (ej: transcript de call).
 **Input schema:**
 ```json
@@ -1088,10 +1051,11 @@ Mismas que Crystal Ball **excepto** `search_similar_historical_deals` con filter
 **Configuración:**
 ```python
 INTERVENTION_ENGINE_CONFIG = {
-    "model": "claude-sonnet-4-6",
+    "model": "gpt-4o",
     "max_tokens": 2048,
     "temperature": 0.4,
     "timeout_seconds": 30,
+    "response_format": {"type": "json_schema", "json_schema": INTERVENTION_OUTPUT_SCHEMA},
     # No max_turns: es single-shot
 }
 ```
@@ -1160,331 +1124,6 @@ def test_intervention_engine_uses_playbook():
 ```
  
 Si el smoke test falla, no se mergea.
- 
-
----
-
-### 2.6 CSM Team (Persona 1)
-
-> Endpoints para listar y consultar el equipo de CSMs interno. Se usa en frontend (selector de aprobador), agentes (mention en Slack) y dispatch (resolver `csm_to_mention`).
-
-#### `GET /csm-team`
-Lista de CSMs activos.
-
-**Query params:**
-- `active` (default `true`): si `false`, incluye desactivados
-- `role` (opcional): filtrar por rol
-
-**Response 200:**
-```json
-{
-  "csms": [
-    {
-      "id": "uuid",
-      "name": "Carlos López",
-      "email": "carlos@acmesaas.io",
-      "slack_handle": "@carlos",
-      "slack_user_id": "U01ABC123",
-      "phone": "+573001112233",
-      "role": "senior_csm",
-      "active": true,
-      "accounts_assigned_count": 42
-    }
-  ],
-  "total": 5
-}
-```
-
-#### `GET /csm-team/{csm_id}`
-Detalle de un CSM con sus cuentas asignadas.
-
-**Response 200:**
-```json
-{
-  "id": "uuid",
-  "name": "Carlos López",
-  "email": "carlos@acmesaas.io",
-  "slack_handle": "@carlos",
-  "slack_user_id": "U01ABC123",
-  "phone": "+573001112233",
-  "role": "senior_csm",
-  "active": true,
-  "accounts": [
-    {"id": "uuid", "name": "Acme Corp", "health_status": "at_risk", "churn_risk_score": 73}
-  ]
-}
-```
-
----
-
-### 2.7 NPS (Persona 1)
-
-#### `GET /accounts/{account_id}/nps`
-Historial NPS de la cuenta. Útil para mostrar trend de satisfacción.
-
-**Response 200:**
-```json
-{
-  "account_id": "uuid",
-  "current_score": 6,
-  "current_category": "detractor",
-  "average_last_12m": 6.5,
-  "trend_direction": "worsening",
-  "responses": [
-    {
-      "id": "uuid",
-      "score": 6,
-      "category": "detractor",
-      "feedback": "El módulo de reportes sigue lento.",
-      "respondent_email": "maria@acmecorp.com",
-      "respondent_role": "VP Operations",
-      "survey_trigger": "quarterly",
-      "submitted_at": "2026-04-12T00:00:00Z"
-    },
-    {
-      "id": "uuid",
-      "score": 8,
-      "category": "passive",
-      "feedback": null,
-      "submitted_at": "2026-01-15T00:00:00Z"
-    }
-  ]
-}
-```
-
-#### `POST /accounts/{account_id}/nps`
-Registra una nueva respuesta NPS. Actualiza también las columnas denormalizadas en `accounts`.
-
-**Body:**
-```json
-{
-  "score": 6,
-  "feedback": "El módulo de reportes sigue lento.",
-  "respondent_email": "maria@acmecorp.com",
-  "respondent_role": "VP Operations",
-  "survey_trigger": "quarterly",
-  "submitted_at": "2026-04-12T00:00:00Z"
-}
-```
-
-**Response 201:**
-```json
-{
-  "id": "uuid",
-  "account_id": "uuid",
-  "score": 6,
-  "category": "detractor",
-  "submitted_at": "2026-04-12T00:00:00Z"
-}
-```
-
-**Notas:**
-- `category` se calcula en el backend (no se acepta en el body): 0-6 → `detractor`, 7-8 → `passive`, 9-10 → `promoter`.
-- Al insertar, FastAPI también actualiza `accounts.current_nps_score`, `current_nps_category`, `last_nps_at`.
-
----
-
-### 2.8 Health History (Persona 1)
-
-#### `GET /accounts/{account_id}/health-history`
-Historial de health snapshots para graficar tendencia.
-
-**Query params:**
-- `since_days_ago` (default 180)
-- `granularity` (default `none`): `none` | `weekly` (downsample para gráfico)
-
-**Response 200:**
-```json
-{
-  "account_id": "uuid",
-  "current_snapshot": {
-    "churn_risk_score": 73,
-    "expansion_score": 12,
-    "health_status": "at_risk",
-    "computed_at": "2026-05-09T17:30:00Z"
-  },
-  "trend": {
-    "churn_risk_score_30d_delta": 25,
-    "direction": "worsening"
-  },
-  "history": [
-    {"computed_at": "2026-05-09T17:30:00Z", "churn_risk_score": 73, "expansion_score": 12, "health_status": "at_risk"},
-    {"computed_at": "2026-04-25T17:30:00Z", "churn_risk_score": 61, "expansion_score": 14, "health_status": "at_risk"},
-    {"computed_at": "2026-04-11T17:30:00Z", "churn_risk_score": 48, "expansion_score": 18, "health_status": "stable"},
-    {"computed_at": "2026-03-28T17:30:00Z", "churn_risk_score": 35, "expansion_score": 22, "health_status": "stable"}
-  ]
-}
-```
-
-**Notas:**
-- El frontend usa `history` para una línea de tendencia (Recharts/Chart.js).
-- `trend.churn_risk_score_30d_delta` = `current - score_de_hace_30_días` (positivo = empeora).
-
----
-
-### 2.9 Approvals (Persona 2 + Persona 4)
-
-> Endpoints para el flujo de aprobación humana antes del dispatch.
-
-#### `GET /interventions?status=pending_approval`
-Cola de intervenciones esperando aprobación. La consume el frontend (vista "Inbox del CSM").
-
-**Query params:**
-- `status` (opcional): `pending_approval` | `pending` | `rejected` | `sent` | `delivered` | `responded` | `failed`
-- `csm_id` (opcional): filtrar a las cuentas asignadas a un CSM
-- `account_id` (opcional)
-- `limit` (default 50), `offset` (default 0)
-
-**Response 200:**
-```json
-{
-  "interventions": [
-    {
-      "id": "uuid",
-      "account": {
-        "id": "uuid",
-        "name": "Acme Corp",
-        "arr_usd": 48000.00,
-        "csm": {"id": "uuid", "name": "Carlos López"}
-      },
-      "trigger_reason": "churn_risk_high",
-      "channel": "voice_call",
-      "recipient": "+573001234567",
-      "message_subject": null,
-      "message_body": "Hola María, soy Carlos...",
-      "agent_reasoning": "Para cuentas fintech mid-market...",
-      "confidence_score": 0.81,
-      "requires_approval": true,
-      "approval_reasoning": "Canal voice_call + ARR > 25k → revisión humana.",
-      "auto_approved": false,
-      "status": "pending_approval",
-      "created_at": "2026-05-09T17:30:00Z"
-    }
-  ],
-  "total": 7
-}
-```
-
-#### `POST /interventions/{intervention_id}/approve`
-Aprueba manualmente una intervención en `pending_approval`. Cambia `status` a `pending` (lista para dispatch).
-
-**Body:**
-```json
-{
-  "approved_by": "uuid"
-}
-```
-
-**Response 200:**
-```json
-{
-  "intervention_id": "uuid",
-  "status": "pending",
-  "approved_by": "uuid",
-  "approved_at": "2026-05-09T17:32:00Z",
-  "auto_approved": false
-}
-```
-
-**Errores:**
-- `409 Conflict` con `{"error": "intervention_not_pending_approval"}` si el `status` actual no es `pending_approval`.
-- `404` si la intervención no existe.
-
-#### `POST /interventions/{intervention_id}/reject`
-Rechaza una intervención pendiente. Cambia `status` a `rejected` (terminal).
-
-**Body:**
-```json
-{
-  "rejected_by": "uuid",
-  "rejection_reason": "El cliente está fuera de oficina esta semana, agendar para la próxima."
-}
-```
-
-**Response 200:**
-```json
-{
-  "intervention_id": "uuid",
-  "status": "rejected",
-  "approved_by": null,
-  "rejection_reason": "El cliente está fuera de oficina esta semana, agendar para la próxima.",
-  "approved_at": "2026-05-09T17:32:00Z"
-}
-```
-
-**Notas:**
-- `approved_at` se llena también en rechazo (timestamp del cierre del flujo de approval), aunque `approved_by` queda NULL y `rejection_reason` se llena. Persona 4 usa este timestamp para mostrar "rechazada hace 2 minutos".
-- Después de rechazar, `POST /dispatch-intervention` retorna 409 si alguien intenta lanzarla.
-
----
-
-### 2.10 Settings (Persona 1)
-
-> Endpoints para los toggles globales del sistema (single-tenant).
-
-#### `GET /settings`
-Lista todos los settings.
-
-**Response 200:**
-```json
-{
-  "settings": [
-    {
-      "key": "auto_approval_enabled",
-      "value": false,
-      "description": "Si TRUE, aprueba automáticamente intervenciones con requires_approval=true...",
-      "updated_at": "2026-05-09T15:00:00Z",
-      "updated_by": {"id": "uuid", "name": "Carlos López"}
-    },
-    {
-      "key": "auto_approval_max_arr_usd",
-      "value": 25000,
-      "description": "..."
-    }
-  ]
-}
-```
-
-#### `GET /settings/{key}`
-Lee un setting específico.
-
-**Response 200:**
-```json
-{
-  "key": "auto_approval_enabled",
-  "value": false,
-  "description": "...",
-  "updated_at": "2026-05-09T15:00:00Z",
-  "updated_by": {"id": "uuid", "name": "Carlos López"}
-}
-```
-
-#### `PUT /settings/{key}`
-Actualiza un setting.
-
-**Body:**
-```json
-{
-  "value": true,
-  "updated_by": "uuid"
-}
-```
-
-**Response 200:**
-```json
-{
-  "key": "auto_approval_enabled",
-  "value": true,
-  "previous_value": false,
-  "updated_at": "2026-05-09T17:35:00Z",
-  "updated_by": {"id": "uuid", "name": "Carlos López"}
-}
-```
-
-**Notas:**
-- Cuando se cambia `auto_approval_enabled` de `false` a `true`, FastAPI **NO** auto-aprueba retroactivamente intervenciones que ya están en `pending_approval`. El toggle solo aplica a nuevas intervenciones.
-- El frontend muestra un toggle visible (sección "Configuración del demo") y un badge "Auto-approval activo" cuando está en `true`.
-
 ---
 
 ## 3. Webhooks de Make (Persona 3)
