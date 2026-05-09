@@ -25,13 +25,50 @@ def _base_scores(bucket: Bucket, rng: random.Random) -> tuple[int, int, str]:
     return rng.randint(12, 35), rng.randint(38, 58), rng.choice(["stable", "healthy"])
 
 
+def _health_status_from_scores(churn: int, exp: int, rng: random.Random) -> str:
+    if churn >= 70:
+        return "critical" if churn >= 78 else "at_risk"
+    if exp >= 72 and churn < 45:
+        return "expanding"
+    if churn >= 45:
+        return "at_risk"
+    if exp >= 60:
+        return "healthy"
+    return rng.choice(["stable", "healthy"])
+
+
+def _mc_walk_params(bucket: Bucket) -> tuple[float, float, float]:
+    """(churn_drift, expansion_drift, gaussian_sigma) per Monte Carlo plan."""
+    if bucket == "at_risk_obvious":
+        return 4.5, -1.0, 4.0
+    if bucket == "at_risk_subtle":
+        return 2.0, -0.5, 3.0
+    if bucket == "expansion_ready":
+        return -1.0, 4.5, 4.0
+    if bucket == "expansion_subtle":
+        return -0.5, 2.5, 3.0
+    return 0.0, 0.0, 2.5
+
+
+def _mc_initial_scores(bucket: Bucket, rng: random.Random) -> tuple[int, int]:
+    """Oldest point in the health series (random walk start)."""
+    if bucket == "at_risk_obvious":
+        return rng.randint(18, 42), rng.randint(12, 32)
+    if bucket == "at_risk_subtle":
+        return rng.randint(24, 48), rng.randint(18, 38)
+    if bucket in ("expansion_ready", "expansion_subtle"):
+        return rng.randint(14, 36), rng.randint(34, 56)
+    return rng.randint(16, 34), rng.randint(32, 54)
+
+
 def build_health_history_and_snapshot(
     seed: AccountSeed,
     rng: random.Random,
     *,
     version: str = "seed-synthetic-v1",
+    monte_carlo: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    churn_end, exp_end, _status_hint = _base_scores(seed.bucket, rng)
+    churn_end, exp_end, _ = _base_scores(seed.bucket, rng)
     n_points = rng.randint(3, 8)
     now = datetime.now(timezone.utc)
     step_days = max(10, 90 // max(n_points - 1, 1))
@@ -40,39 +77,41 @@ def build_health_history_and_snapshot(
     exp_vals: list[int] = []
     status_vals: list[str] = []
 
-    for i in range(n_points):
-        t = i / max(n_points - 1, 1)
-        if seed.bucket.startswith("at_risk"):
-            # Ascending churn toward "now" (CONTRACTS §1 account_health_history notes)
-            start_c = rng.randint(22, 48)
-            end_c = min(93, max(start_c + 18, churn_end))
-            churn = int(start_c + t * (end_c - start_c))
-            exp_start = rng.randint(15, 42)
-            exp = int(exp_start + t * (exp_end - exp_start) * 0.35)
-        elif seed.bucket.startswith("expansion"):
-            churn_start = rng.randint(15, 38)
-            churn = int(churn_start + t * (churn_end - churn_start) * 0.4)
-            start_e = rng.randint(38, 58)
-            end_e = min(92, max(start_e + 20, exp_end))
-            exp = int(start_e + t * (end_e - start_e))
-        else:
-            churn = int(churn_end + rng.randint(-6, 6) * (0.5 - abs(t - 0.5)))
-            exp = int(exp_end + rng.randint(-6, 6) * (0.5 - abs(t - 0.5)))
-        churn = max(5, min(95, churn))
-        exp = max(5, min(95, exp))
-        churn_vals.append(churn)
-        exp_vals.append(exp)
-        if churn >= 70:
-            st = "critical" if churn >= 78 else "at_risk"
-        elif exp >= 72 and churn < 45:
-            st = "expanding"
-        elif churn >= 45:
-            st = "at_risk"
-        elif exp >= 60:
-            st = "healthy"
-        else:
-            st = rng.choice(["stable", "healthy"])
-        status_vals.append(st)
+    if monte_carlo:
+        d_churn, d_exp, sigma = _mc_walk_params(seed.bucket)
+        c0, e0 = _mc_initial_scores(seed.bucket, rng)
+        churn_vals.append(c0)
+        exp_vals.append(e0)
+        c, e = float(c0), float(e0)
+        for _ in range(n_points - 1):
+            c = max(5, min(95, c + d_churn + rng.gauss(0, sigma)))
+            e = max(5, min(95, e + d_exp + rng.gauss(0, sigma)))
+            churn_vals.append(int(round(c)))
+            exp_vals.append(int(round(e)))
+        status_vals = [_health_status_from_scores(churn_vals[i], exp_vals[i], rng) for i in range(n_points)]
+    else:
+        for i in range(n_points):
+            t = i / max(n_points - 1, 1)
+            if seed.bucket.startswith("at_risk"):
+                start_c = rng.randint(22, 48)
+                end_c = min(93, max(start_c + 18, churn_end))
+                churn = int(start_c + t * (end_c - start_c))
+                exp_start = rng.randint(15, 42)
+                exp = int(exp_start + t * (exp_end - exp_start) * 0.35)
+            elif seed.bucket.startswith("expansion"):
+                churn_start = rng.randint(15, 38)
+                churn = int(churn_start + t * (churn_end - churn_start) * 0.4)
+                start_e = rng.randint(38, 58)
+                end_e = min(92, max(start_e + 20, exp_end))
+                exp = int(start_e + t * (end_e - start_e))
+            else:
+                churn = int(churn_end + rng.randint(-6, 6) * (0.5 - abs(t - 0.5)))
+                exp = int(exp_end + rng.randint(-6, 6) * (0.5 - abs(t - 0.5)))
+            churn = max(5, min(95, churn))
+            exp = max(5, min(95, exp))
+            churn_vals.append(churn)
+            exp_vals.append(exp)
+            status_vals.append(_health_status_from_scores(churn, exp, rng))
 
     history: list[dict[str, Any]] = []
     for i in range(n_points):
@@ -104,7 +143,7 @@ def build_health_history_and_snapshot(
                 ),
                 "crystal_ball_confidence": round(rng.uniform(0.72, 0.91), 2),
                 "computed_at": computed_at.isoformat(),
-                "computed_by_version": version,
+                "computed_by_version": version + ("+mc" if monte_carlo else ""),
             }
         )
 
@@ -143,6 +182,6 @@ def build_health_history_and_snapshot(
         ),
         "health_status": last["health_status"],
         "computed_at": datetime.now(timezone.utc).isoformat(),
-        "computed_by_version": version,
+        "computed_by_version": last["computed_by_version"],
     }
     return history, snapshot

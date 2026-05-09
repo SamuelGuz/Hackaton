@@ -137,6 +137,11 @@ def main() -> None:
     p.add_argument("--accounts", type=int, default=200, dest="num_accounts")
     p.add_argument("--skip-claude", action="store_true")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument(
+        "--monte-carlo",
+        action="store_true",
+        help="Monte Carlo mode: log-normal ARR/seats, Poisson usage_events, Gaussian random walk health scores",
+    )
     args = p.parse_args()
 
     only = {x.strip() for x in args.only.split(",") if x.strip()} if args.only else None
@@ -145,6 +150,7 @@ def main() -> None:
         num_accounts=args.num_accounts,
         skip_claude=args.skip_claude,
         random_seed=args.seed,
+        monte_carlo=args.monte_carlo,
     )
     run_seed(cfg, do_reset=args.reset, only=only)
 

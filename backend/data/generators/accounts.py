@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 import uuid
 from dataclasses import dataclass, field
@@ -52,39 +53,83 @@ def _bucket_distribution(n: int) -> list[Bucket]:
     return order
 
 
-def _pick_plan_size_arr_for_bucket(bucket: Bucket, rng: random.Random) -> tuple[Plan, Size, float]:
+def _lognormal_arr(rng: random.Random, mean_usd: float, sigma: float) -> float:
+    """Sample ARR (USD) from log-normal; mean_usd is the geometric mean."""
+    mu = math.log(max(mean_usd, 1.0))
+    return round(math.exp(mu + rng.gauss(0, sigma)), 2)
+
+
+def _pick_plan_size_arr_for_bucket(
+    bucket: Bucket, rng: random.Random, *, monte_carlo: bool = False
+) -> tuple[Plan, Size, float]:
     if bucket in ("expansion_ready", "expansion_subtle"):
         plan: Plan = rng.choice(["growth", "business", "enterprise"])
         size: Size = rng.choice(["smb", "mid_market", "enterprise"])
-        base = rng.uniform(40_000, 280_000) if size == "enterprise" else rng.uniform(15_000, 90_000)
-        return plan, size, round(base, 2)
+        if monte_carlo:
+            base = _lognormal_arr(rng, 80_000, 0.55)
+            if size == "enterprise":
+                base = max(base, _lognormal_arr(rng, 140_000, 0.42))
+        else:
+            base = rng.uniform(40_000, 280_000) if size == "enterprise" else rng.uniform(15_000, 90_000)
+            base = round(base, 2)
+        return plan, size, float(max(5_000, min(500_000, base)))
     if bucket == "at_risk_obvious":
         plan = rng.choice(["starter", "growth", "business"])
         size = rng.choice(["startup", "smb", "mid_market"])
-        return plan, size, round(rng.uniform(8_000, 75_000), 2)
+        if monte_carlo:
+            base = _lognormal_arr(rng, 25_000, 0.65)
+        else:
+            base = round(rng.uniform(8_000, 75_000), 2)
+        return plan, size, float(max(5_000, min(500_000, base)))
     if bucket in ("at_risk_subtle",):
         plan = rng.choice(["growth", "business"])
         size = rng.choice(["smb", "mid_market", "enterprise"])
-        return plan, size, round(rng.uniform(20_000, 120_000), 2)
+        if monte_carlo:
+            base = _lognormal_arr(rng, 45_000, 0.60)
+        else:
+            base = round(rng.uniform(20_000, 120_000), 2)
+        return plan, size, float(max(5_000, min(500_000, base)))
     # healthy_stable
     plan = rng.choice(["starter", "growth", "business", "enterprise"])
     size = rng.choice(["startup", "smb", "mid_market", "enterprise"])
-    return plan, size, round(rng.uniform(12_000, 200_000), 2)
-
-
-def _seats_for_bucket(bucket: Bucket, plan: Plan, rng: random.Random) -> tuple[int, int]:
-    purchased = {"starter": 25, "growth": 80, "business": 200, "enterprise": 800}[plan]
-    purchased = int(purchased * rng.uniform(0.6, 1.4))
-    purchased = max(5, purchased)
-    if bucket in ("expansion_ready", "expansion_subtle"):
-        active = int(purchased * rng.uniform(0.88, 0.99))
-    elif bucket in ("at_risk_obvious",):
-        active = int(purchased * rng.uniform(0.25, 0.55))
-    elif bucket in ("at_risk_subtle",):
-        active = int(purchased * rng.uniform(0.45, 0.72))
+    if monte_carlo:
+        base = _lognormal_arr(rng, 55_000, 0.58)
     else:
-        active = int(purchased * rng.uniform(0.55, 0.85))
-    active = max(1, min(active, purchased))
+        base = round(rng.uniform(12_000, 200_000), 2)
+    return plan, size, float(max(5_000, min(500_000, base)))
+
+
+def _seats_for_bucket(
+    bucket: Bucket, plan: Plan, rng: random.Random, *, monte_carlo: bool = False
+) -> tuple[int, int]:
+    base_plan = {"starter": 25, "growth": 80, "business": 200, "enterprise": 800}[plan]
+    if monte_carlo:
+        purchased = int(base_plan * max(0.45, min(1.65, rng.gauss(1.0, 0.15))))
+    else:
+        purchased = int(base_plan * rng.uniform(0.6, 1.4))
+    purchased = max(5, purchased)
+
+    if monte_carlo:
+        if bucket in ("expansion_ready", "expansion_subtle"):
+            mu_r, sig_r = 0.93, 0.04
+        elif bucket in ("at_risk_obvious",):
+            mu_r, sig_r = 0.40, 0.08
+        elif bucket in ("at_risk_subtle",):
+            mu_r, sig_r = 0.58, 0.08
+        else:
+            mu_r, sig_r = 0.70, 0.10
+        ratio = max(0.05, min(0.99, rng.gauss(mu_r, sig_r)))
+        active = max(1, min(purchased, round(purchased * ratio)))
+    else:
+        if bucket in ("expansion_ready", "expansion_subtle"):
+            active = int(purchased * rng.uniform(0.88, 0.99))
+        elif bucket in ("at_risk_obvious",):
+            active = int(purchased * rng.uniform(0.25, 0.55))
+        elif bucket in ("at_risk_subtle",):
+            active = int(purchased * rng.uniform(0.45, 0.72))
+        else:
+            active = int(purchased * rng.uniform(0.55, 0.85))
+        active = max(1, min(active, purchased))
     return purchased, active
 
 
@@ -117,6 +162,7 @@ def build_account_seeds(
     csm_rows: list[dict[str, Any]],
     *,
     faker_seed: int = 42,
+    monte_carlo: bool = False,
 ) -> list[AccountSeed]:
     rng = random.Random(faker_seed)
     try:
@@ -142,8 +188,10 @@ def build_account_seeds(
         aid = str(uuid.uuid4())
         industry: Industry = rng.choice(INDUSTRIES)  # type: ignore[assignment]
         geography = rng.choice(["latam", "us", "eu", "apac"])
-        plan, size, arr_usd = _pick_plan_size_arr_for_bucket(bucket, rng)
-        seats_purchased, seats_active = _seats_for_bucket(bucket, plan, rng)
+        plan, size, arr_usd = _pick_plan_size_arr_for_bucket(bucket, rng, monte_carlo=monte_carlo)
+        seats_purchased, seats_active = _seats_for_bucket(
+            bucket, plan, rng, monte_carlo=monte_carlo
+        )
         csm_id = _assign_csm_id(
             size=size,
             arr_usd=arr_usd,

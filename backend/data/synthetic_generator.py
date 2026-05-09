@@ -29,6 +29,7 @@ class GeneratorConfig:
     random_seed: int = 42
     cache_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent / "_cache")
     historical_deals_n: int = 50
+    monte_carlo: bool = False
 
 
 @dataclass
@@ -57,7 +58,12 @@ def build_dataset(cfg: GeneratorConfig) -> GeneratedDataset:
 
     csm_team = build_csm_team_rows()
     system_settings = build_system_settings_rows()
-    seeds = build_account_seeds(cfg.num_accounts, csm_team, faker_seed=cfg.random_seed)
+    seeds = build_account_seeds(
+        cfg.num_accounts,
+        csm_team,
+        faker_seed=cfg.random_seed,
+        monte_carlo=cfg.monte_carlo,
+    )
 
     claude: ClaudeClient | None
     try:
@@ -79,7 +85,13 @@ def build_dataset(cfg: GeneratorConfig) -> GeneratedDataset:
         rng = random.Random(cfg.random_seed + i * 7919)
         n_events = rng.randint(100, 300)
         usage_events.extend(
-            generate_usage_events(seed.id, seed.bucket, rng=rng, count=n_events)
+            generate_usage_events(
+                seed.id,
+                seed.bucket,
+                rng=rng,
+                count=n_events,
+                monte_carlo=cfg.monte_carlo,
+            )
         )
         cache_t = cfg.cache_dir / f"{seed.id}_tickets.json"
         cache_c = cfg.cache_dir / f"{seed.id}_conversations.json"
@@ -111,7 +123,7 @@ def build_dataset(cfg: GeneratorConfig) -> GeneratedDataset:
                 model=haiku_model(),
             )
         )
-        hist, snap = build_health_history_and_snapshot(seed, rng)
+        hist, snap = build_health_history_and_snapshot(seed, rng, monte_carlo=cfg.monte_carlo)
         account_health_history.extend(hist)
         account_health_snapshot.append(snap)
 
