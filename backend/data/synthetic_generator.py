@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,7 +20,9 @@ from backend.data.generators.playbooks import build_playbook_memory_rows
 from backend.data.generators.settings import build_system_settings_rows
 from backend.data.generators.tickets import generate_tickets_for_account
 from backend.data.generators.usage_events import generate_usage_events
-from backend.shared.claude_client import ClaudeClient, get_claude_client, haiku_model, sonnet_model
+from backend.shared.llm_client import LLMClient, get_llm_client, haiku_model, llm_provider, sonnet_model
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -65,10 +68,16 @@ def build_dataset(cfg: GeneratorConfig) -> GeneratedDataset:
         monte_carlo=cfg.monte_carlo,
     )
 
-    claude: ClaudeClient | None
+    claude: LLMClient | None
     try:
-        claude = None if cfg.skip_claude else get_claude_client()
-    except Exception:
+        claude = None if cfg.skip_claude else get_llm_client()
+    except Exception as e:
+        _log.error(
+            "No se pudo inicializar el cliente LLM (provider=%s); se usarán fallbacks sin API: %s",
+            llm_provider(),
+            e,
+            exc_info=True,
+        )
         claude = None
 
     nps_rows = generate_nps_for_accounts(seeds, rng_master, claude, cfg.skip_claude)

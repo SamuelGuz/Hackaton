@@ -4,6 +4,7 @@ pydantic
 python-dotenv
 supabase
 anthropic
+openai
 httpx
 faker
 tenacity

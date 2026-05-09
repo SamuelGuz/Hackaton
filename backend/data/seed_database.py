@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from collections import Counter
 from pathlib import Path
@@ -131,6 +132,10 @@ def run_seed(cfg: GeneratorConfig, *, do_reset: bool, only: set[str] | None) -> 
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
     p = argparse.ArgumentParser(description="Seed Supabase with synthetic demo data.")
     p.add_argument("--reset", action="store_true", help="Delete seed tables before insert")
     p.add_argument("--only", type=str, default="", help="Comma tables e.g. accounts,usage_events")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import random
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -12,6 +13,8 @@ from typing import Any, get_args
 from backend.data.prompts.conversations_prompts import CONVO_SYSTEM, conversations_user_prompt
 from backend.data.schemas import Bucket, ConversationChannel, ConversationDirection, Sentiment
 from backend.shared.claude_client import ClaudeClient, haiku_model
+
+_log = logging.getLogger(__name__)
 
 _VALID_CH = set(get_args(ConversationChannel))
 _VALID_DIR = set(get_args(ConversationDirection))
@@ -94,7 +97,18 @@ def generate_conversations_for_account(
             n_convos=n,
             tone_rules=_tone_rules(bucket),
         )
-        raw = claude.complete_json(prompt, model=model or haiku_model(), max_tokens=4096, temperature=0.7)
+        try:
+            raw = claude.complete_json(
+                prompt, model=model or haiku_model(), max_tokens=4096, temperature=0.7
+            )
+        except Exception as e:
+            _log.warning(
+                "LLM falló al generar conversaciones para %r: %s",
+                company_name,
+                e,
+                exc_info=True,
+            )
+            raw = _fallback_convos(company_name, bucket, n, rng)
         if not isinstance(raw, list):
             raw = _fallback_convos(company_name, bucket, n, rng)
         if cache_path:

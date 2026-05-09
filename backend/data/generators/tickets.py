@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import random
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -12,6 +13,8 @@ from typing import Any, get_args
 from backend.data.prompts.tickets_prompts import TICKETS_SYSTEM, tickets_user_prompt
 from backend.data.schemas import Bucket, Sentiment, TicketPriority, TicketStatus
 from backend.shared.claude_client import ClaudeClient, haiku_model
+
+_log = logging.getLogger(__name__)
 
 _VALID_PRI = set(get_args(TicketPriority))
 _VALID_STAT = set(get_args(TicketStatus))
@@ -107,7 +110,18 @@ def generate_tickets_for_account(
             n_tickets=n,
             sentiment_rules=_rules_for_bucket(bucket),
         )
-        raw = claude.complete_json(prompt, model=model or haiku_model(), max_tokens=2048, temperature=0.65)
+        try:
+            raw = claude.complete_json(
+                prompt, model=model or haiku_model(), max_tokens=2048, temperature=0.65
+            )
+        except Exception as e:
+            _log.warning(
+                "LLM falló al generar tickets para %r: %s",
+                company_name,
+                e,
+                exc_info=True,
+            )
+            raw = _fallback_tickets(company_name, bucket, n, rng)
         if not isinstance(raw, list):
             raw = _fallback_tickets(company_name, bucket, n, rng)
         if cache_path:

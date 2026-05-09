@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
 import random
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from backend.data.generators.accounts import AccountSeed
 from backend.data.prompts.nps_feedback_prompts import NPS_FEEDBACK_SYSTEM, nps_feedback_batch_prompt
 from backend.data.schemas import Bucket, nps_category_from_score
 from backend.shared.claude_client import ClaudeClient, haiku_model
 
-from backend.data.generators.accounts import AccountSeed
+_log = logging.getLogger(__name__)
 
 
 def _score_distribution(bucket: Bucket, rng: random.Random) -> int:
@@ -101,8 +103,8 @@ def generate_nps_for_accounts(
                 for obj in raw:
                     if isinstance(obj, dict) and obj.get("id") and obj.get("feedback") is not None:
                         feedback_map[str(obj["id"])] = str(obj["feedback"])[:2000]
-        except Exception:
-            pass
+        except Exception as e:
+            _log.warning("LLM falló al generar feedback NPS en lote: %s", e, exc_info=True)
 
     if feedback_map:
         for r in nps_rows:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import random
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -16,6 +17,8 @@ _VALID_STATUS = set(get_args(HistoricalDealStatus))
 _VALID_SIZE = set(get_args(Size))
 _VALID_IND = set(INDUSTRIES)
 from backend.shared.claude_client import ClaudeClient, sonnet_model
+
+_log = logging.getLogger(__name__)
 
 CACHE_NAME = "historical_deals_batch.json"
 
@@ -79,7 +82,8 @@ def generate_historical_deals(
             else:
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 cache_path.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
-        except Exception:
+        except Exception as e:
+            _log.warning("LLM falló al generar historical_deals: %s", e, exc_info=True)
             raw = _fallback_deals(n, rng)
 
     return _normalize(raw, rng, n)
