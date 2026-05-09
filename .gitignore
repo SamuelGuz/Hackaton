@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+node_modules/
+dist/
+build/
+.DS_Store
+*.log
+# Personal role file (each contributor has their own)
+my-role.md
+.cursor/my-role.md
