@@ -607,6 +607,9 @@ Detalle completo de una cuenta.
  
 #### `GET /accounts/{account_id}/timeline`
 Timeline de eventos para el Health Dashboard.
+
+**Nota (implementación extendida):** además de `usage_event`, `ticket` y `conversation`, el backend puede incluir `nps_response`, `health_history` e `intervention` con el mismo shape (`type`, `subtype`, `timestamp`, `summary`) para enriquecer el dashboard.
+
  
 **Response 200:**
 ```json
