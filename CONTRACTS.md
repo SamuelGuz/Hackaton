@@ -644,6 +644,294 @@ Consulta el estado de delivery (para que el frontend muestre el "✓ entregado")
 }
 ```
 
+
+---
+ 
+## 2.5 Arquitectura de agentes (Persona 2)
+ 
+> **Esta sección define cómo se construyen los agentes internamente.** Es el contrato técnico para Persona 2 y debe respetarse para que el sistema sea coherente.
+ 
+### 2.5.1 Decisiones arquitectónicas
+ 
+| Decisión | Valor |
+|---|---|
+| Framework | Anthropic SDK directo (`anthropic` Python package) |
+| Modelo principal | `claude-sonnet-4-6` (reasoning) |
+| Modelo auxiliar | `claude-haiku-4-5-20251001` (sentiment, summarization) |
+| Comunicación entre agentes | Solo vía base de datos. No invocaciones directas. |
+| Memoria conversacional | No. Cada invocación es stateless. |
+| Logging | Solo resultado final. NO se loguean turns intermedios. |
+ 
+### 2.5.2 Tipo de agente por componente
+ 
+| Agente | Tipo | Razón |
+|---|---|---|
+| **Crystal Ball** | Autónomo (loop con tool calling) | Necesita decidir cuántos tickets/conversaciones explorar según la cuenta |
+| **Expansion** | Autónomo (loop con tool calling) | Igual: profundidad de análisis depende de la cuenta |
+| **Intervention Engine** | Flujo fijo (single-shot LLM call) | Decisión debe ser determinística y rápida; no puede haber aleatoriedad en el demo |
+ 
+### 2.5.3 Contrato de agente autónomo (Crystal Ball, Expansion)
+ 
+**Loop básico:**
+```
+1. FastAPI recibe POST /agents/{name}/{account_id}
+2. Construye system prompt + user prompt inicial
+3. Inicia loop con max_turns = 10:
+   a. Llama Claude con tools disponibles
+   b. Si Claude pide tool_use → ejecuta tool → devuelve tool_result
+   c. Si Claude devuelve mensaje final con structured output → break
+   d. Si turns == 10 sin output final → return error "max_turns_exceeded"
+4. Valida output con Pydantic model
+5. Escribe a account_health_snapshot
+6. Devuelve response al cliente
+```
+ 
+**Configuración estándar:**
+```python
+AGENT_CONFIG = {
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 4096,
+    "max_turns": 10,
+    "timeout_seconds": 60,
+    "temperature": 0.3,  # baja para consistencia
+}
+```
+ 
+**Manejo de errores:**
+- Tool call falla → devolver `{"error": "..."}` al agente, dejarlo decidir si reintenta
+- Max turns alcanzado → log + devolver último análisis parcial con flag `incomplete: true`
+- Timeout → return 504 al cliente con mensaje claro
+- Output no parseable → 1 retry con instrucción de fix; si falla otra vez, 500
+### 2.5.4 Tools disponibles para Crystal Ball Agent
+ 
+Persona 2 implementa estas tools como funciones Python que el agente puede llamar.
+ 
+#### `get_account_details`
+**Descripción:** Obtiene info base de la cuenta (industria, tamaño, plan, ARR, contract dates, champion).
+**Input schema:**
+```json
+{
+  "account_id": "string (uuid)"
+}
+```
+**Output:** Account object completo (mismo shape que `GET /accounts/{id}` sin el bloque `health`).
+ 
+#### `get_usage_events`
+**Descripción:** Obtiene eventos de uso de la cuenta. Permite filtrar por rango de fechas y tipo de evento.
+**Input schema:**
+```json
+{
+  "account_id": "string (uuid)",
+  "since_days_ago": "integer (default: 90)",
+  "event_types": "array of strings (optional)",
+  "aggregate_by": "enum: 'day' | 'week' | 'none' (default: 'week')"
+}
+```
+**Output:** Lista de eventos o agregaciones según `aggregate_by`.
+ 
+#### `get_tickets`
+**Descripción:** Obtiene tickets de soporte de la cuenta.
+**Input schema:**
+```json
+{
+  "account_id": "string (uuid)",
+  "status_filter": "enum: 'all' | 'open' | 'unresolved' (default: 'all')",
+  "limit": "integer (default: 20)"
+}
+```
+**Output:** Lista de tickets con sentiment incluido.
+ 
+#### `get_conversations`
+**Descripción:** Obtiene conversaciones recientes con la cuenta (emails, calls, slack).
+**Input schema:**
+```json
+{
+  "account_id": "string (uuid)",
+  "last_n": "integer (default: 10)",
+  "channel_filter": "enum: 'all' | 'email' | 'call_transcript' | 'slack' (default: 'all')"
+}
+```
+**Output:** Lista de conversaciones con sentiment.
+ 
+#### `analyze_sentiment_batch` *(usa Haiku)*
+**Descripción:** Analiza sentiment de un batch de textos. Usa Haiku internamente para ser rápido.
+**Input schema:**
+```json
+{
+  "texts": "array of strings",
+  "context": "string (optional, ej: 'support ticket')"
+}
+```
+**Output:** Array de `{text_index, sentiment, confidence}`.
+**Notas:** Esta tool internamente llama a `claude-haiku-4-5-20251001` con un prompt corto. No expone Haiku como tool genérica al agente; es una utilidad de sentiment.
+ 
+#### `summarize_text` *(usa Haiku)*
+**Descripción:** Resume un texto largo (ej: transcript de call).
+**Input schema:**
+```json
+{
+  "text": "string",
+  "max_words": "integer (default: 50)"
+}
+```
+**Output:** `{summary: string, key_points: array}`.
+ 
+#### `search_similar_historical_deals`
+**Descripción:** Busca deals históricos con perfil similar. Usado para razonar "qué pasó antes con cuentas como esta".
+**Input schema:**
+```json
+{
+  "industry": "string",
+  "size": "string",
+  "arr_range": "[number, number]",
+  "status_filter": "enum: 'all' | 'won' | 'lost' | 'churned' | 'expanded'",
+  "limit": "integer (default: 5)"
+}
+```
+**Output:** Lista de deals con `reason_real`, `lessons_learned`, etc.
+ 
+### 2.5.5 Tools disponibles para Expansion Agent
+ 
+Mismas que Crystal Ball **excepto** `search_similar_historical_deals` con filter `'expanded'` por default. Adicionalmente:
+ 
+#### `get_seat_utilization`
+**Descripción:** Calcula utilización de seats activos vs comprados a lo largo del tiempo.
+**Input schema:**
+```json
+{
+  "account_id": "string (uuid)",
+  "lookback_days": "integer (default: 90)"
+}
+```
+**Output:** `{current_utilization_pct, trend, weeks_at_high_utilization}`.
+ 
+#### `get_feature_adoption`
+**Descripción:** Qué features está usando la cuenta y cuáles del plan superior aún no.
+**Input schema:**
+```json
+{
+  "account_id": "string (uuid)"
+}
+```
+**Output:** `{features_used: [], features_in_higher_plan_unused: [], adoption_score: number}`.
+ 
+### 2.5.6 Output structured de agentes autónomos
+ 
+**Crystal Ball Agent debe terminar el loop devolviendo un mensaje con este JSON exacto:**
+```json
+{
+  "churn_risk_score": 73,
+  "top_signals": [
+    {"signal": "logins_drop_pct", "value": 62, "severity": "high"},
+    {"signal": "tickets_unresolved", "value": 2, "severity": "medium"}
+  ],
+  "predicted_churn_reason": "Caída sostenida de uso + tickets sin resolver",
+  "confidence": 0.84,
+  "reasoning": "Esta cuenta muestra el patrón clásico de pre-churn..."
+}
+```
+ 
+**Expansion Agent output:**
+```json
+{
+  "expansion_score": 78,
+  "ready_to_expand": true,
+  "recommended_plan": "business",
+  "reasoning": "Logins +210%, seats al 92%...",
+  "suggested_upsell_message": "Hola María, vimos que..."
+}
+```
+ 
+**Cómo se obtiene el structured output:**
+- Opción 1 (recomendada): última herramienta del agente es `submit_final_analysis` con el schema completo. El agente llama esa tool cuando termina, FastAPI captura el input.
+- Opción 2: parsing del último mensaje del agente con `json.loads()`. Menos robusto pero más simple.
+### 2.5.7 Contrato de Intervention Engine (flujo fijo, no autónomo)
+ 
+**Sin tool calling.** Es una llamada single-shot a Claude que:
+1. Recibe `account_id` + `trigger_reason`
+2. Lee de DB (vía función Python, no tool):
+   - El `account_health_snapshot` ya calculado
+   - Los playbooks relevantes (filtrados por `account_profile` matching)
+   - Las últimas 3 intervenciones a esa cuenta (para no repetir)
+3. Llama Claude con un prompt estructurado pidiendo decisión
+4. Output JSON: el playbook elegido + mensaje personalizado + reasoning
+**Configuración:**
+```python
+INTERVENTION_ENGINE_CONFIG = {
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 2048,
+    "temperature": 0.4,
+    "timeout_seconds": 30,
+    # No max_turns: es single-shot
+}
+```
+ 
+**Output esperado** (mismo que CONTRACTS.md sección 2.2 — `POST /agents/intervention/{account_id}`):
+```json
+{
+  "recommended_channel": "voice_call",
+  "recipient": "+57 300 1234567",
+  "message_body": "Hola María...",
+  "playbook_id_used": "uuid",
+  "playbook_success_rate_at_decision": 0.72,
+  "agent_reasoning": "Para cuentas fintech mid-market...",
+  "confidence": 0.81
+}
+```
+ 
+### 2.5.8 Contrato de Closed-Loop Learning (no es agente, es función)
+ 
+**No es un agente.** Es una función Python que se ejecuta cuando se registra un `outcome` en una intervention.
+ 
+**Trigger:** `POST /interventions/{id}/outcome` (definido en sección 2.3)
+ 
+**Lógica:**
+1. Recibe outcome (success | partial | no_response | negative | churned)
+2. Carga el playbook que se usó (`playbook_id_used` de la intervention)
+3. Actualiza:
+   - `times_used += 1`
+   - Si outcome ∈ {success, partial}: `times_succeeded += 1`
+   - `success_rate = times_succeeded / times_used`
+4. Si `success_rate < 0.30 AND times_used >= 5`:
+   - Marca el playbook como deprecated (`superseded_by` se llena después)
+   - Trigger una llamada al LLM para generar un playbook mejorado
+   - El nuevo playbook arranca con `times_used=0, times_succeeded=0, version=N+1`
+5. Devuelve resumen del cambio
+### 2.5.9 Pre-cómputo de health snapshots (CRÍTICO PARA EL DEMO)
+ 
+Persona 2 debe correr **antes del demo** un script que:
+1. Itera sobre las 200 cuentas
+2. Llama Crystal Ball Agent + Expansion Agent para cada una
+3. Persiste resultado en `account_health_snapshot`
+**Razón:** durante los 90s del demo no hay tiempo de esperar 60s de loop autónomo por cuenta. Las cuentas mostradas tienen su análisis listo en DB.
+ 
+**Excepción demo interactivo:** Persona 4 puede definir 1-2 cuentas "frescas" donde el agente sí corre en vivo durante el demo (para mostrar capacidad real). Estas cuentas deben tener data de tamaño moderado para que el loop termine en <30s.
+ 
+### 2.5.10 Smoke test obligatorio antes de integración
+ 
+Antes de mergear a `main`, Persona 2 debe correr este test:
+ 
+```python
+# tests/smoke_agents.py
+def test_crystal_ball_completes():
+    response = call_crystal_ball(test_account_id)
+    assert response.churn_risk_score is not None
+    assert 0 <= response.churn_risk_score <= 100
+    assert len(response.top_signals) >= 1
+    assert response.confidence is not None
+ 
+def test_expansion_completes():
+    # ...similar
+    pass
+ 
+def test_intervention_engine_uses_playbook():
+    response = call_intervention(test_account_id, "churn_risk_high")
+    assert response.playbook_id_used is not None
+```
+ 
+Si el smoke test falla, no se mergea.
+ 
+
 ---
 
 ## 3. Webhooks de Make (Persona 3)
