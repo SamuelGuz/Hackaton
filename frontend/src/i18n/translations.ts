@@ -172,6 +172,14 @@ const TRANSLATIONS = {
   "cl.rowRewriteOf":{ es: "Reescritura del agente",  en: "Agent rewrite" },
   "cl.rowPrevious": { es: "Versión anterior:",        en: "Previous version:" },
   "cl.error":       { es: "No se pudo cargar la memoria de playbooks", en: "Could not load playbook memory" },
+  "cl.noEvolutionTitle": {
+    es: "Aún no hay una evolución destacada",
+    en: "No featured evolution yet",
+  },
+  "cl.noEvolutionBody": {
+    es: "La vista compara un playbook antiguo con su reemplazo (campo superseded_by en la base). Si todos los playbooks están “activos” sin cadena de reemplazo, no hay par que mostrar. Volvé a sembrar datos con el seed actual o esperá a que el learning loop registre un reemplazo.",
+    en: "This view compares an older playbook with its replacement (superseded_by chain in the database). If every playbook is active with no replacement link, there is no pair to show. Re-run the seed with the current generator or wait until the learning loop records a replacement.",
+  },
 
   // Upload page
   "up.badge":       { es: "Importar datos",    en: "Import data" },

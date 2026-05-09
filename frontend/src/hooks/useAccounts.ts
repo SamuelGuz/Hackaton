@@ -44,7 +44,7 @@ export function useAccounts(filter: AccountFilter, search: string) {
         (a) =>
           a.name.toLowerCase().includes(q) ||
           a.industry.toLowerCase().includes(q) ||
-          a.csmAssigned.toLowerCase().includes(q)
+          a.csm.name.toLowerCase().includes(q)
       );
     }
     return [...list].sort((a, b) => b.churnRiskScore - a.churnRiskScore);

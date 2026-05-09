@@ -186,7 +186,7 @@ export default function Dashboard() {
                       {renewal.label}
                     </span>
                   </td>
-                  <td className="text-slate-400 text-xs">{a.csmAssigned}</td>
+                  <td className="text-slate-400 text-xs">{a.csm.name}</td>
                 </tr>
               );
             })}

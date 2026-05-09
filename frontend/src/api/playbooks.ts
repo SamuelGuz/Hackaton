@@ -17,13 +17,13 @@ export async function getPlaybooks(): Promise<PlaybooksResponse> {
   return apiFetch<PlaybooksResponse>("/playbooks");
 }
 
-export async function getFeaturedEvolution(): Promise<FeaturedEvolution> {
+export async function getFeaturedEvolution(): Promise<FeaturedEvolution | null> {
   if (USE_MOCK) return featuredEvolution;
-  // El backend real puede derivar esto del par superseded más reciente con mayor delta
+  // Requiere en DB al menos un playbook nuevo con `supersedes` → fila antigua con superseded_by = id del nuevo.
   const { playbooks } = await apiFetch<PlaybooksResponse>("/playbooks");
   const after = playbooks.find((p) => p.supersedes);
   const before = after && playbooks.find((p) => p.id === after.supersedes);
-  if (!before || !after) throw new Error("No featured evolution available");
+  if (!before || !after) return null;
   return {
     before,
     after,

@@ -83,7 +83,7 @@ export default function AccountDetail() {
               <RiskBadge status={account.health.status} />
             </div>
             <p className="text-sm text-slate-400">
-              {humanizeI18n(account.industry, t)} · {humanizeI18n(account.size, t)} · {humanizeI18n(account.geography, t)} · CSM <span className="text-slate-300">{account.csmAssigned}</span>
+              {humanizeI18n(account.industry, t)} · {humanizeI18n(account.size, t)} · {humanizeI18n(account.geography, t)} · CSM <span className="text-slate-300">{account.csm.name}</span>
             </p>
           </div>
         </div>

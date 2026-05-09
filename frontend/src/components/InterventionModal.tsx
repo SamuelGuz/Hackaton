@@ -216,7 +216,7 @@ export function InterventionModal({ accountId, accountName, champion, onClose }:
                     <button
                       key={label}
                       disabled={phase !== "ready" || !value || value === "—"}
-                      onClick={() => setRecipient(value)}
+                      onClick={() => setRecipient(value ?? "")}
                       title={value || "N/A"}
                       className="text-left px-2 py-1.5 bg-slate-800/40 border border-slate-700 rounded-md hover:bg-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >

@@ -24,7 +24,12 @@ function summaryToDetail(s: AccountSummary): AccountDetail {
       role: "—",
       changedRecently: false,
     },
-    csmAssigned: s.csmAssigned,
+    csm: {
+      id: s.csm.id,
+      name: s.csm.name,
+      email: s.csm.email,
+      slackHandle: s.csm.slackHandle ?? null,
+    },
     lastQbrDate: null,
     health: {
       status: s.healthStatus,

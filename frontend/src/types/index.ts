@@ -4,6 +4,19 @@ export type HealthStatus = "critical" | "at_risk" | "stable" | "healthy" | "expa
 export type InterventionChannel = "email" | "slack" | "whatsapp" | "voice_call";
 export type InterventionOutcome = "success" | "partial" | "no_response" | "negative" | "churned";
 
+export interface CsmRef {
+  id: string;
+  name: string;
+  email: string;
+  slackHandle?: string | null;
+}
+
+export interface CsmDetail extends CsmRef {
+  slackUserId?: string | null;
+  phone?: string | null;
+  role?: string;
+}
+
 export interface AccountSummary {
   id: string;
   name: string;
@@ -12,11 +25,14 @@ export interface AccountSummary {
   plan: string;
   arrUsd: number;
   championName: string;
-  csmAssigned: string;
+  csm: CsmRef;
   contractRenewalDate: string;
   healthStatus: HealthStatus;
   churnRiskScore: number;
   expansionScore: number;
+  currentNpsScore?: number | null;
+  currentNpsCategory?: "detractor" | "passive" | "promoter" | null;
+  lastNpsAt?: string | null;
   // Contacto del champion — se llena cuando el usuario importa un Excel
   contact?: ContactChannels;
 }
@@ -35,8 +51,10 @@ export interface Signal {
 export interface AccountHealth {
   status: HealthStatus;
   churnRiskScore: number;
+  previousChurnRiskScore?: number | null;
+  trendDirection?: "improving" | "stable" | "worsening";
   topSignals: Signal[];
-  predictedChurnReason: string;
+  predictedChurnReason: string | null;
   crystalBallReasoning: string;
   expansionScore: number;
   readyToExpand: boolean;
@@ -45,10 +63,19 @@ export interface AccountHealth {
 export interface Champion {
   name: string;
   email: string;
-  phone: string;
-  slackContact: string;
   role: string;
   changedRecently: boolean;
+  // Solo presentes cuando el usuario importa un Excel; el backend no los persiste.
+  phone?: string;
+  slackContact?: string;
+}
+
+export interface NpsDetail {
+  currentScore?: number | null;
+  currentCategory?: "detractor" | "passive" | "promoter" | null;
+  lastSubmittedAt?: string | null;
+  lastFeedback?: string | null;
+  historyCount?: number;
 }
 
 export interface ContactChannels {
@@ -70,8 +97,9 @@ export interface AccountDetail {
   signupDate: string;
   contractRenewalDate: string;
   champion: Champion;
-  csmAssigned: string;
+  csm: CsmDetail;
   lastQbrDate: string | null;
+  nps?: NpsDetail;
   health: AccountHealth;
 }
 

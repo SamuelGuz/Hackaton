@@ -107,7 +107,7 @@ def build_playbook_memory_rows() -> list[dict[str, Any]]:
             "used": 11,
             "ok": 7,
         },
-        # 3 by size
+        # by size (+ 2 filas "evolution_*" abajo = 12 playbooks totales)
         {
             "name": "size_startup_time_to_value",
             "channel": "email",
@@ -117,26 +117,6 @@ def build_playbook_memory_rows() -> list[dict[str, Any]]:
             "reason": "Startups: riesgo por onboarding incompleto.",
             "used": 15,
             "ok": 9,
-        },
-        {
-            "name": "size_mid_market_qbr",
-            "channel": "email",
-            "profile": {"size": ["mid_market"]},
-            "signals": {"days_since_qbr": 75},
-            "tpl": "Invitación QBR con métricas de valor...",
-            "reason": "Mid-market: QBR como palanca de retención.",
-            "used": 13,
-            "ok": 9,
-        },
-        {
-            "name": "size_enterprise_steerco",
-            "channel": "voice_call",
-            "profile": {"size": ["enterprise"]},
-            "signals": {"executive_sponsor_risk": True},
-            "tpl": "Agenda steerco 30m con sponsor y CSM...",
-            "reason": "Enterprise: riesgo político / sponsor.",
-            "used": 6,
-            "ok": 4,
         },
     ]
 
@@ -158,4 +138,42 @@ def build_playbook_memory_rows() -> list[dict[str, Any]]:
             "superseded_by": None,
         }
         pb.append(row)
+
+    # Par superseded (closed-loop): voz reemplaza email tras bajo desempeño — alimenta GET /playbooks + UI "evolución".
+    new_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "seed-playbook:evolution_v2_voice_prechurn"))
+    old_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "seed-playbook:evolution_v1_email_prechurn"))
+    pb.append(
+        {
+            "id": old_id,
+            "account_profile": {"industry": ["fintech"], "size": ["mid_market"], "plan": ["growth", "business"]},
+            "signal_pattern": {"logins_drop_pct": 50, "tickets_negative_count": 2, "champion_changed": False},
+            "recommended_channel": "email",
+            "message_template": "Hola, vimos que tu uso bajó este mes. ¿Hay algo en lo que podamos ayudarte?",
+            "reasoning_template": "Pre-churn mid-market: email genérico; tasa baja tras varios usos.",
+            "times_used": 7,
+            "times_succeeded": 2,
+            "success_rate": _rate(7, 2),
+            "version": 1,
+            "superseded_by": new_id,
+        }
+    )
+    pb.append(
+        {
+            "id": new_id,
+            "account_profile": {"industry": ["fintech"], "size": ["mid_market"], "plan": ["growth", "business"]},
+            "signal_pattern": {
+                "logins_drop_pct": 50,
+                "tickets_negative_count": 2,
+                "champion_changed": False,
+            },
+            "recommended_channel": "voice_call",
+            "message_template": "Hola, soy tu CSM. Vi la caída de uso y quiero entender en 15 min qué está frenando al equipo.",
+            "reasoning_template": "Misma señal; llamada personal para recuperar contexto humano.",
+            "times_used": 11,
+            "times_succeeded": 8,
+            "success_rate": _rate(11, 8),
+            "version": 1,
+            "superseded_by": None,
+        }
+    )
     return pb

@@ -2,7 +2,7 @@ fastapi
 uvicorn
 pydantic
 python-dotenv
-supabase
+supabase==2.13.0
 anthropic
 openai
 httpx

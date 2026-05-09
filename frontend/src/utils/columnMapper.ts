@@ -146,7 +146,8 @@ export function buildAccounts(
   if (errors.length > 0) return { accounts, errors };
 
   // Tipo intermedio que incluye todos los FieldKey posibles
-  type RawAcc = Partial<AccountSummary> & {
+  type RawAcc = Omit<Partial<AccountSummary>, "csm"> & {
+    csmAssigned?: string;
     championEmail?: string;
     championPhone?: string;
     slackContact?: string;
@@ -183,7 +184,12 @@ export function buildAccounts(
       plan: acc.plan || "growth",
       arrUsd: acc.arrUsd,
       championName: acc.championName || "—",
-      csmAssigned: acc.csmAssigned || "—",
+      csm: {
+        id: `imported-csm-${Date.now()}-${idx}`,
+        name: acc.csmAssigned || "—",
+        email: "",
+        slackHandle: null,
+      },
       contractRenewalDate: acc.contractRenewalDate || new Date(Date.now() + 365 * 86400 * 1000).toISOString(),
       healthStatus: health,
       churnRiskScore: churn,
