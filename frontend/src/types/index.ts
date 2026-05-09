@@ -17,6 +17,8 @@ export interface AccountSummary {
   healthStatus: HealthStatus;
   churnRiskScore: number;
   expansionScore: number;
+  // Contacto del champion — se llena cuando el usuario importa un Excel
+  contact?: ContactChannels;
 }
 
 export interface AccountsResponse {
@@ -43,8 +45,16 @@ export interface AccountHealth {
 export interface Champion {
   name: string;
   email: string;
+  phone: string;
+  slackContact: string;
   role: string;
   changedRecently: boolean;
+}
+
+export interface ContactChannels {
+  email: string;
+  phone: string;
+  slackContact: string;
 }
 
 export interface AccountDetail {

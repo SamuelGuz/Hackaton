@@ -3,17 +3,28 @@ import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import AccountDetail from "./pages/AccountDetail";
 import ClosedLoop from "./pages/ClosedLoop";
+import Upload from "./pages/Upload";
 import { ToastProvider } from "./components/Toast";
+import { DataProvider } from "./context/DataContext";
+import { I18nProvider, useI18n } from "./context/I18nContext";
 
-function Placeholder({ title }: { title: string }) {
+function LangToggle() {
+  const { lang, setLang } = useI18n();
   return (
-    <div className="flex items-center justify-center h-64 text-slate-500 text-sm">
-      {title} — próximamente
-    </div>
+    <button
+      onClick={() => setLang(lang === "es" ? "en" : "es")}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-700 hover:border-slate-500 bg-slate-800/60 hover:bg-slate-700/80 transition-colors text-xs font-semibold text-slate-300 hover:text-white"
+      title={lang === "es" ? "Switch to English" : "Cambiar a español"}
+    >
+      <span className="text-base leading-none">{lang === "es" ? "🇬🇧" : "🇦🇷"}</span>
+      {lang === "es" ? "EN" : "ES"}
+    </button>
   );
 }
 
 function Layout({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
+
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
       isActive
@@ -33,11 +44,12 @@ function Layout({ children }: { children: ReactNode }) {
               Churn Oracle
             </span>
           </div>
-          <nav className="flex gap-1">
-            <NavLink to="/" end className={navClass}>Dashboard</NavLink>
-            <NavLink to="/closed-loop" className={navClass}>Closed-Loop</NavLink>
-            <NavLink to="/upload" className={navClass}>Importar datos</NavLink>
+          <nav className="flex gap-1 flex-1">
+            <NavLink to="/" end className={navClass}>{t("nav.dashboard")}</NavLink>
+            <NavLink to="/closed-loop" className={navClass}>{t("nav.closedLoop")}</NavLink>
+            <NavLink to="/upload" className={navClass}>{t("nav.import")}</NavLink>
           </nav>
+          <LangToggle />
         </div>
       </header>
       <main className="flex-1 px-6 py-8">{children}</main>
@@ -48,16 +60,20 @@ function Layout({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <ToastProvider>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/accounts/:id" element={<AccountDetail />} />
-            <Route path="/closed-loop" element={<ClosedLoop />} />
-            <Route path="/upload" element={<Placeholder title="Importar datos" />} />
-          </Routes>
-        </Layout>
-      </ToastProvider>
+      <I18nProvider>
+        <DataProvider>
+          <ToastProvider>
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/accounts/:id" element={<AccountDetail />} />
+                <Route path="/closed-loop" element={<ClosedLoop />} />
+                <Route path="/upload" element={<Upload />} />
+              </Routes>
+            </Layout>
+          </ToastProvider>
+        </DataProvider>
+      </I18nProvider>
     </BrowserRouter>
   );
 }

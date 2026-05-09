@@ -6,11 +6,12 @@ const SVG_PROPS = {
   strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
 };
 
+// Static fallback labels (components that can't use hooks use this directly)
 export const channelLabel: Record<InterventionChannel, string> = {
-  email: "Email",
-  slack: "Slack",
-  whatsapp: "WhatsApp",
-  voice_call: "Llamada de voz",
+  email:      "Email",
+  slack:      "Slack",
+  whatsapp:   "WhatsApp",
+  voice_call: "Voice Call",
 };
 
 export function ChannelIcon({ channel }: { channel: InterventionChannel }) {

@@ -1,5 +1,6 @@
-import { ChannelIcon, channelLabel } from "./ChannelIcon";
-import { humanize } from "../utils/format";
+import { ChannelIcon } from "./ChannelIcon";
+import { humanize, humanizeI18n } from "../utils/format";
+import { useI18n } from "../context/I18nContext";
 import type { Playbook } from "../types";
 
 function rateColor(rate: number): string {
@@ -17,15 +18,18 @@ function rateBarColor(rate: number): string {
 }
 
 function ProfileTags({ profile }: { profile: Record<string, unknown> }) {
+  const { t } = useI18n();
   const entries = Object.entries(profile);
-  if (entries.length === 0) return <span className="text-slate-500 text-xs">Sin filtros · aplica a todas las cuentas</span>;
+  if (entries.length === 0) {
+    return <span className="text-slate-500 text-xs">{t("cl.rowNoProfile")}</span>;
+  }
   return (
     <div className="flex flex-wrap gap-1.5">
       {entries.map(([k, v]) => (
         <span key={k} className="inline-flex items-center gap-1 text-[11px] bg-slate-800/60 border border-slate-700/60 rounded px-2 py-1">
-          <span className="text-slate-500">{humanize(k)}:</span>
+          <span className="text-slate-500">{humanizeI18n(k, t)}:</span>
           <span className="text-slate-200 font-medium">
-            {Array.isArray(v) ? v.join(", ") : typeof v === "boolean" ? (v ? "sí" : "no") : String(v)}
+            {Array.isArray(v) ? v.join(", ") : typeof v === "boolean" ? (v ? "yes" : "no") : String(v)}
           </span>
         </span>
       ))}
@@ -48,6 +52,7 @@ const SVG = {
 };
 
 export function PlaybookRow({ playbook, expanded, onToggle, onJumpTo, byId }: Props) {
+  const { t } = useI18n();
   const superseded = !!playbook.supersededBy;
   const replaces = !!playbook.supersedes;
   const ratePct = (playbook.successRate * 100).toFixed(0);
@@ -68,10 +73,7 @@ export function PlaybookRow({ playbook, expanded, onToggle, onJumpTo, byId }: Pr
       >
         <td className="px-4 py-3">
           <div className="flex items-center gap-3">
-            <svg
-              {...SVG} width="12" height="12"
-              className={`text-slate-500 transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}
-            >
+            <svg {...SVG} width="12" height="12" className={`text-slate-500 transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}>
               <polyline points="9 18 15 12 9 6" />
             </svg>
             <div className="w-7 h-7 rounded-md bg-slate-800 text-slate-300 flex items-center justify-center shrink-0">
@@ -80,9 +82,9 @@ export function PlaybookRow({ playbook, expanded, onToggle, onJumpTo, byId }: Pr
             <div className="min-w-0">
               <div className="text-sm font-medium text-slate-100 truncate">{playbook.name}</div>
               <div className="text-[11px] text-slate-500">
-                {channelLabel[playbook.recommendedChannel]} · v{playbook.version}
-                {superseded && <span className="ml-2 text-rose-400">· reemplazado</span>}
-                {replaces   && <span className="ml-2 text-emerald-400">· reescritura</span>}
+                {t(`channel.${playbook.recommendedChannel}` as any)} · v{playbook.version}
+                {superseded && <span className="ml-2 text-rose-400">· {t("cl.rowReplaced")}</span>}
+                {replaces   && <span className="ml-2 text-emerald-400">· {t("cl.rowRewrite")}</span>}
               </div>
             </div>
           </div>
@@ -111,72 +113,60 @@ export function PlaybookRow({ playbook, expanded, onToggle, onJumpTo, byId }: Pr
         <tr className="bg-slate-900/60">
           <td colSpan={4} className="px-4 pb-5 pt-1">
             <div className="ml-7 grid md:grid-cols-2 gap-5 pl-3 border-l-2 border-slate-700/60">
-              {/* Left: profile + signal */}
               <div className="space-y-4">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
-                    Perfil de cuenta objetivo
+                    {t("cl.rowProfile")}
                   </p>
                   <ProfileTags profile={playbook.accountProfile} />
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
-                    Patrón de señales
+                    {t("cl.rowSignal")}
                   </p>
                   <ProfileTags profile={playbook.signalPattern} />
                 </div>
                 <div className="flex gap-4 text-xs pt-1">
-                  <div>
-                    <span className="text-slate-500">Ejecuciones: </span>
-                    <span className="text-slate-200 font-semibold tabular-nums">{playbook.timesUsed}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500">Éxitos: </span>
-                    <span className="text-emerald-300 font-semibold tabular-nums">{playbook.timesSucceeded}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500">Fallas: </span>
-                    <span className="text-rose-300 font-semibold tabular-nums">{playbook.timesUsed - playbook.timesSucceeded}</span>
-                  </div>
+                  <div><span className="text-slate-500">{t("cl.rowRuns")}: </span><span className="text-slate-200 font-semibold tabular-nums">{playbook.timesUsed}</span></div>
+                  <div><span className="text-slate-500">{t("cl.rowSuccesses")}: </span><span className="text-emerald-300 font-semibold tabular-nums">{playbook.timesSucceeded}</span></div>
+                  <div><span className="text-slate-500">{t("cl.rowFails")}: </span><span className="text-rose-300 font-semibold tabular-nums">{playbook.timesUsed - playbook.timesSucceeded}</span></div>
                 </div>
 
-                {/* Supersede info */}
                 {superseded && replacement && (
                   <div className="px-3 py-2 bg-rose-500/5 border border-rose-500/20 rounded-md text-xs">
-                    <p className="text-rose-300 font-semibold mb-1">Este playbook fue reemplazado</p>
+                    <p className="text-rose-300 font-semibold mb-1">{t("cl.rowSuperseded")}</p>
                     <button
                       onClick={(e) => { e.stopPropagation(); onJumpTo?.(replacement.id); }}
                       className="text-slate-300 hover:text-white inline-flex items-center gap-1 group"
                     >
-                      Ver reemplazo: <span className="text-emerald-300 underline decoration-emerald-500/40 underline-offset-2 group-hover:decoration-emerald-400">{replacement.name}</span>
+                      {t("cl.rowViewReplacement")} <span className="text-emerald-300 underline decoration-emerald-500/40 underline-offset-2 group-hover:decoration-emerald-400">{replacement.name}</span>
                       <svg {...SVG} width="11" height="11"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                     </button>
                   </div>
                 )}
                 {replaces && predecessor && (
                   <div className="px-3 py-2 bg-emerald-500/5 border border-emerald-500/20 rounded-md text-xs">
-                    <p className="text-emerald-300 font-semibold mb-1">Reescritura del agente</p>
+                    <p className="text-emerald-300 font-semibold mb-1">{t("cl.rowRewriteOf")}</p>
                     <button
                       onClick={(e) => { e.stopPropagation(); onJumpTo?.(predecessor.id); }}
                       className="text-slate-300 hover:text-white inline-flex items-center gap-1 group"
                     >
-                      Versión anterior: <span className="text-rose-300 line-through decoration-rose-500/40 group-hover:decoration-rose-400">{predecessor.name}</span>
+                      {t("cl.rowPrevious")} <span className="text-rose-300 line-through group-hover:decoration-rose-400">{predecessor.name}</span>
                       <svg {...SVG} width="11" height="11"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
                     </button>
                   </div>
                 )}
               </div>
 
-              {/* Right: message template */}
               <div>
                 <p className="text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
-                  Plantilla de mensaje
+                  {t("cl.rowTemplate")}
                 </p>
                 <blockquote className="text-xs text-slate-300 leading-relaxed bg-slate-800/40 border border-slate-700/60 rounded-md px-3 py-2.5 italic">
                   "{playbook.messageTemplate}"
                 </blockquote>
                 <p className="text-[10px] text-slate-500 mt-2">
-                  Canal: <span className="text-slate-300">{channelLabel[playbook.recommendedChannel]}</span> · El agente personaliza variables por cuenta antes de lanzar.
+                  {t("cl.rowChannel")}: <span className="text-slate-300">{t(`channel.${playbook.recommendedChannel}` as any)}</span> · {t("cl.rowPersonalize")}
                 </p>
               </div>
             </div>

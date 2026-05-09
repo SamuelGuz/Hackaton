@@ -301,6 +301,8 @@ export const mockAccountDetail: AccountDetail = {
   champion: {
     name: "María Pérez",
     email: "maria@acmecorp.com",
+    phone: "+57 300 1234567",
+    slackContact: "@maria.perez",
     role: "VP Operations",
     changedRecently: true,
   },

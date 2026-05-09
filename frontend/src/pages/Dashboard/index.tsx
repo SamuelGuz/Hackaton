@@ -1,18 +1,13 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccounts } from "../../hooks/useAccounts";
+import { useI18n } from "../../context/I18nContext";
 import { RiskBadge } from "../../components/RiskBadge";
 import { CompanyAvatar } from "../../components/CompanyAvatar";
 import { ScoreBar } from "../../components/ScoreBar";
 import { SkeletonRow, SkeletonCard } from "../../components/Skeleton";
-import { humanize, formatArr, formatRenewal } from "../../utils/format";
+import { humanizeI18n, formatArr, formatRenewal } from "../../utils/format";
 import type { AccountFilter } from "../../api/accounts";
-
-const FILTERS: { label: string; value: AccountFilter }[] = [
-  { label: "Todas", value: "all" },
-  { label: "En riesgo", value: "at_risk" },
-  { label: "Expansión", value: "expansion" },
-];
 
 const renewalToneClass: Record<"urgent" | "soon" | "normal", string> = {
   urgent: "text-rose-300 bg-rose-500/10",
@@ -45,9 +40,16 @@ const icons = {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState<AccountFilter>("all");
+  const { t } = useI18n();
+  const [activeFilter, setActiveFilter] = useState<AccountFilter>("all");
   const [search, setSearch] = useState("");
-  const { accounts, stats, loading, error } = useAccounts(filter, search);
+  const { accounts, stats, loading, error } = useAccounts(activeFilter, search);
+
+  const FILTERS: { label: string; value: AccountFilter }[] = [
+    { label: t("dash.filterAll"),    value: "all" },
+    { label: t("dash.filterRisk"),   value: "at_risk" },
+    { label: t("dash.filterExpand"), value: "expansion" },
+  ];
 
   const lastSync = useMemo(() => new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }), []);
 
@@ -56,51 +58,42 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Health Dashboard</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">{t("dash.title")}</h1>
           <p className="text-sm text-slate-400 mt-1">
-            Centro de comando de Customer Success · Sincronizado a las {lastSync}
+            {t("dash.subtitle")} {lastSync}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          Datos en vivo
+          {t("global.live")}
         </div>
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {loading ? (
-          <>
-            <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
-          </>
+          <><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
         ) : (
           <>
-            <StatCard label="Total cuentas" value={stats.total} accent="text-slate-100" icon={icons.total} sub={`${stats.total} activas`} />
-            <StatCard label="En riesgo" value={stats.atRisk} accent="text-rose-400" icon={icons.risk} sub={`${stats.total ? ((stats.atRisk / stats.total) * 100).toFixed(0) : 0}% del portafolio`} />
-            <StatCard label="Expansión lista" value={stats.expansion} accent="text-sky-400" icon={icons.expand} sub="oportunidades activas" />
-            <StatCard label="ARR en riesgo" value={formatArr(stats.arrAtRisk)} accent="text-amber-400" icon={icons.arr} sub="anualizado · USD" />
+            <StatCard label={t("dash.statTotal")} value={stats.total} accent="text-slate-100" icon={icons.total} sub={`${stats.total} ${t("dash.statActive")}`} />
+            <StatCard label={t("dash.statRisk")} value={stats.atRisk} accent="text-rose-400" icon={icons.risk} sub={`${stats.total ? ((stats.atRisk / stats.total) * 100).toFixed(0) : 0}% ${t("dash.statRiskSub")}`} />
+            <StatCard label={t("dash.statExpand")} value={stats.expansion} accent="text-sky-400" icon={icons.expand} sub={t("dash.statExpandSub")} />
+            <StatCard label={t("dash.statArr")} value={formatArr(stats.arrAtRisk)} accent="text-amber-400" icon={icons.arr} sub={t("dash.statArrSub")} />
           </>
         )}
       </div>
 
-      {/* Filter + search bar */}
+      {/* Filter + search */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex gap-1 bg-slate-900/70 border border-slate-800 rounded-lg p-1">
           {FILTERS.map((f) => {
-            const count =
-              f.value === "all" ? stats.total :
-              f.value === "at_risk" ? stats.atRisk :
-              stats.expansion;
-            const active = filter === f.value;
+            const count = f.value === "all" ? stats.total : f.value === "at_risk" ? stats.atRisk : stats.expansion;
+            const active = activeFilter === f.value;
             return (
               <button
                 key={f.value}
-                onClick={() => setFilter(f.value)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-slate-700 text-white shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
+                onClick={() => setActiveFilter(f.value)}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors ${active ? "bg-slate-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}
               >
                 {f.label}
                 <span className={`text-[11px] px-1.5 py-0.5 rounded tabular-nums ${active ? "bg-slate-900 text-slate-300" : "bg-slate-800 text-slate-500"}`}>
@@ -110,14 +103,13 @@ export default function Dashboard() {
             );
           })}
         </div>
-
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">{icons.search}</span>
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar empresa, industria o CSM..."
+            placeholder={t("dash.searchPlaceholder")}
             className="bg-slate-900/70 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/60 focus:bg-slate-900 w-72 transition-colors"
           />
         </div>
@@ -128,31 +120,31 @@ export default function Dashboard() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-900/80 border-b border-slate-800 text-slate-500 text-[11px] uppercase tracking-widest">
-              <th className="text-left px-4 py-3 font-semibold">Empresa</th>
-              <th className="text-left px-4 py-3 font-semibold">Industria · Plan</th>
-              <th className="text-right px-4 py-3 font-semibold">ARR</th>
-              <th className="text-center px-4 py-3 font-semibold">Riesgo de churn</th>
-              <th className="text-center px-4 py-3 font-semibold">Expansión</th>
-              <th className="text-left px-4 py-3 font-semibold">Renovación</th>
-              <th className="text-left px-4 py-3 font-semibold">CSM</th>
+              <th className="text-left px-4 py-3 font-semibold">{t("dash.colCompany")}</th>
+              <th className="text-left px-4 py-3 font-semibold">{t("dash.colIndustryPlan")}</th>
+              <th className="text-right px-4 py-3 font-semibold">{t("dash.colArr")}</th>
+              <th className="text-center px-4 py-3 font-semibold">{t("dash.colChurn")}</th>
+              <th className="text-center px-4 py-3 font-semibold">{t("dash.colExpand")}</th>
+              <th className="text-left px-4 py-3 font-semibold">{t("dash.colRenewal")}</th>
+              <th className="text-left px-4 py-3 font-semibold">{t("dash.colCsm")}</th>
             </tr>
           </thead>
           <tbody>
             {loading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
 
             {error && (
-              <tr><td colSpan={7} className="p-12 text-center text-rose-400">Error al cargar: {error}</td></tr>
+              <tr><td colSpan={7} className="p-12 text-center text-rose-400">Error: {error}</td></tr>
             )}
 
             {!loading && !error && accounts.length === 0 && (
               <tr><td colSpan={7} className="p-12 text-center text-slate-500">
-                <p className="text-base mb-1">Sin resultados</p>
-                <p className="text-xs">Probá con otro filtro o búsqueda.</p>
+                <p className="text-base mb-1">{t("global.noResults")}</p>
+                <p className="text-xs">{t("global.tryFilter")}</p>
               </td></tr>
             )}
 
             {!loading && !error && accounts.map((a) => {
-              const renewal = formatRenewal(a.contractRenewalDate);
+              const renewal = formatRenewal(a.contractRenewalDate, t as any);
               return (
                 <tr
                   key={a.id}
@@ -171,7 +163,7 @@ export default function Dashboard() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-slate-300">
-                    <div className="text-xs">{humanize(a.industry)}</div>
+                    <div className="text-xs">{humanizeI18n(a.industry, t)}</div>
                     <div className="text-[11px] text-slate-500 capitalize">{a.plan}</div>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-slate-200 font-medium">{formatArr(a.arrUsd)}</td>
