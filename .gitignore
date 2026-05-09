@@ -11,3 +11,4 @@ build/
 # Personal role file (each contributor has their own)
 my-role.md
 .cursor/my-role.md
+backend/data/_cache/
