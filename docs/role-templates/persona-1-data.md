@@ -19,9 +19,9 @@ that everyone else depends on.
 - `CONTRACTS.md` — I am the primary maintainer
 
 ### Tasks (from plan.md)
-- [ ] Setup repo structure, .env.example, .gitignore
-- [ ] Create Supabase project and configure tables per CONTRACTS.md section 1
-- [ ] Maintain CONTRACTS.md as the single source of truth
+- [x] Setup repo structure, .env.example, .gitignore
+- [x] Create Supabase project and configure tables per CONTRACTS.md section 1
+- [x] Maintain CONTRACTS.md as the single source of truth
 - [ ] Generate 200 synthetic accounts with Claude (varied buckets per CONTRACTS.md section 4)
 - [ ] Generate usage events, tickets, conversations, historical deals
 - [ ] Seed initial 12 playbooks (coordinate with Persona 2)
