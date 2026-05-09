@@ -1,0 +1,136 @@
+name: Build & Push via SSH (EC2 plain Docker)
+
+on:
+  push:
+    # 1. Agregamos uat a la lista de ramas
+    branches: [ main, develop, uat ]
+  workflow_dispatch:
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start ssh-agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Configure SSH keepalive
+        run: |
+          mkdir -p ~/.ssh
+          printf "%s\n" \
+            "Host *" \
+            "  ServerAliveInterval 30" \
+            "  ServerAliveCountMax 240" \
+            "  TCPKeepAlive yes" \
+            "  ControlMaster auto" \
+            "  ControlPersist 10m" \
+            > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Add EC2 to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -4 -H ${{ vars.REMOTE_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Test SSH connectivity
+        run: |
+          ssh -o BatchMode=yes -o ConnectTimeout=10 \
+            ${{ vars.REMOTE_USER }}@${{ vars.REMOTE_HOST }} \
+            "echo REMOTE OK: \$(hostname) && sudo docker --version && curl -s http://127.0.0.1:5000/v2/_catalog || true"
+
+      - name: Docker Hub login on EC2 (optional)
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_TOKEN:-}" ]; then
+            echo "Haciendo login a Docker Hub en EC2…"
+            ssh ${{ vars.REMOTE_USER }}@${{ vars.REMOTE_HOST }} \
+              "sudo docker login -u '${DOCKERHUB_USERNAME}' -p '${DOCKERHUB_TOKEN}'"
+          else
+            echo "Sin credenciales de Docker Hub; se omite login."
+          fi
+
+      - name: Pre-pull base images on EC2 (with retries)
+        run: |
+          ssh ${{ vars.REMOTE_USER }}@${{ vars.REMOTE_HOST }} '
+            set -e
+            pull_retry() {
+              img="$1"
+              for i in 1 2 3 4 5; do
+                echo "Pull $img (intento $i/5)"
+                if sudo docker pull "$img"; then
+                  return 0
+                fi
+                sleep $((i*10))
+              done
+              return 1
+            }
+            pull_retry nginx:1.25-alpine
+            pull_retry node:18-alpine
+          '
+
+      - name: Build & Push on EC2
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          SHA: ${{ github.sha }}
+          # Usamos github.ref_name para obtener el nombre de la rama directamente
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          set -e
+
+          OWNER_LC=$(echo "$OWNER" | tr "[:upper:]" "[:lower:]")
+          REPO_LC=$(echo "$REPO"  | tr "[:upper:]" "[:lower:]")
+          SHA12=${SHA:0:12}
+          REMOTE="${{ vars.REMOTE_USER }}@${{ vars.REMOTE_HOST }}"
+
+          # 2. Nueva lógica para manejar main, uat y develop
+          if [ "$BRANCH_NAME" = "main" ]; then
+            IMAGE="localhost:5000/${OWNER_LC}/${REPO_LC}"
+            TAG1="$SHA12"
+            TAG2="latest"
+          elif [ "$BRANCH_NAME" = "uat" ]; then
+            # Configuración para UAT
+            IMAGE="localhost:5000/${OWNER_LC}/${REPO_LC}-uat"
+            TAG1="uat-${SHA12}"
+            TAG2="uat-latest"
+          else
+            # develop o cualquier otra rama
+            IMAGE="localhost:5000/${OWNER_LC}/${REPO_LC}-dev"
+            TAG1="dev-${SHA12}"
+            TAG2="dev-latest"
+          fi
+
+          echo "Construyendo imagen para rama [$BRANCH_NAME]: $IMAGE:$TAG1 y $IMAGE:$TAG2"
+
+          TMPDIR="/tmp/build-${REPO_LC}-${SHA12}"
+          ssh "$REMOTE" "rm -rf '$TMPDIR' && mkdir -p '$TMPDIR'"
+
+          tar -czf - --exclude=".git" . | ssh "$REMOTE" "tar -xzf - -C '$TMPDIR'"
+
+          ssh "$REMOTE" "
+            set -e
+            cd '$TMPDIR'
+            ( while sleep 30; do echo '[keepalive] docker build en progreso...'; done ) &
+            KA_PID=\$!
+            if sudo docker build --progress=plain --pull \
+              -t '$IMAGE:$TAG1' \
+              -t '$IMAGE:$TAG2' \
+              .; then
+              kill \$KA_PID || true
+            else
+              kill \$KA_PID || true
+              exit 1
+            fi
+
+            sudo docker push '$IMAGE:$TAG1'
+            sudo docker push '$IMAGE:$TAG2'
+
+            rm -rf '$TMPDIR'
+          "
