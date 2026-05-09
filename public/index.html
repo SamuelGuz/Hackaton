@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dark Army</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0c0f;
+      --fg: #e8eaed;
+      --muted: #8b949e;
+      --accent: #00ff9d;
+      --accent-dim: rgba(0, 255, 157, 0.15);
+      --border: #1f2428;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      min-height: 100%;
+    }
+
+    body {
+      font-family: "Outfit", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, var(--accent-dim), transparent),
+        linear-gradient(180deg, #0d1117 0%, var(--bg) 40%);
+    }
+
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: clamp(2rem, 6vw, 4rem) 1.5rem;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .badge {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1.25rem;
+    }
+
+    h1 {
+      font-size: clamp(2.5rem, 8vw, 3.75rem);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 1rem;
+    }
+
+    h1 span {
+      color: var(--accent);
+    }
+
+    .lead {
+      font-size: 1.15rem;
+      color: var(--muted);
+      font-weight: 300;
+      max-width: 34em;
+      margin-bottom: 2rem;
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      background: rgba(22, 27, 34, 0.6);
+      backdrop-filter: blur(8px);
+    }
+
+    .panel p {
+      font-size: 0.95rem;
+      color: var(--fg);
+      margin-bottom: 0.75rem;
+    }
+
+    .panel p:last-child {
+      margin-bottom: 0;
+    }
+
+    .mono {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    footer {
+      margin-top: 2.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    footer strong {
+      color: var(--accent);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <p class="badge">Presentación</p>
+    <h1>Somos <span>Dark Army</span></h1>
+    <p class="lead">
+      Equipo enfocado en construir soluciones con precisión, seguridad y criterio técnico.
+      Esta es nuestra presencia pública: clara, directa y lista para desplegarse donde haga falta.
+    </p>
+    <div class="panel">
+      <p>
+        Trabajamos como unidad: diseño, implementación y operación con la misma exigencia.
+        Si llegaste aquí desde nuestro pipeline, la imagen está sirviendo este sitio con nginx.
+      </p>
+      <p class="mono">status: online · stack: static + Docker</p>
+    </div>
+    <footer>
+      <strong>Dark Army</strong> — Hackathon HARA
+    </footer>
+  </main>
+</body>
+</html>
