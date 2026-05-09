@@ -1,5 +1,5 @@
 import { ChannelIcon } from "./ChannelIcon";
-import { humanize, humanizeI18n } from "../utils/format";
+import { humanizeI18n } from "../utils/format";
 import { useI18n } from "../context/I18nContext";
 import type { Playbook } from "../types";
 
@@ -67,11 +67,11 @@ export function PlaybookRow({ playbook, expanded, onToggle, onJumpTo, byId }: Pr
         tabIndex={0}
         onClick={onToggle}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }}
-        className={`border-b border-slate-800/50 cursor-pointer focus:outline-none transition-colors ${
-          expanded ? "bg-slate-800/40" : "hover:bg-slate-800/30 focus:bg-slate-800/30"
+        className={`cursor-pointer focus:outline-none transition-opacity ${
+          expanded ? "co-table-row-active" : ""
         } ${superseded && !expanded ? "opacity-60" : ""}`}
       >
-        <td className="px-4 py-3">
+        <td>
           <div className="flex items-center gap-3">
             <svg {...SVG} width="12" height="12" className={`text-slate-500 transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}>
               <polyline points="9 18 15 12 9 6" />
@@ -89,15 +89,15 @@ export function PlaybookRow({ playbook, expanded, onToggle, onJumpTo, byId }: Pr
             </div>
           </div>
         </td>
-        <td className="px-4 py-3 text-xs text-slate-400">
+        <td className="text-xs text-slate-400">
           {Object.entries(playbook.accountProfile).slice(0, 2).map(([k, v]) => (
             <div key={k} className="truncate">
               <span className="text-slate-500">{k}:</span> {Array.isArray(v) ? v.join(", ") : String(v)}
             </div>
           ))}
         </td>
-        <td className="px-4 py-3 text-right tabular-nums text-slate-300 text-sm">{playbook.timesUsed}</td>
-        <td className="px-4 py-3">
+        <td className="text-right tabular-nums text-slate-300 text-sm">{playbook.timesUsed}</td>
+        <td>
           <div className="flex items-center gap-2 justify-end">
             <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
               <div className={`h-full ${rateBarColor(playbook.successRate)} rounded-full`} style={{ width: `${ratePct}%` }} />
@@ -110,8 +110,8 @@ export function PlaybookRow({ playbook, expanded, onToggle, onJumpTo, byId }: Pr
       </tr>
 
       {expanded && (
-        <tr className="bg-slate-900/60">
-          <td colSpan={4} className="px-4 pb-5 pt-1">
+        <tr className="co-table-expand">
+          <td colSpan={4} className="!py-3 pb-5">
             <div className="ml-7 grid md:grid-cols-2 gap-5 pl-3 border-l-2 border-slate-700/60">
               <div className="space-y-4">
                 <div>

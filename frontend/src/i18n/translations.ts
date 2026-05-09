@@ -1,6 +1,6 @@
 export type Lang = "es" | "en";
 
-const t = {
+const TRANSLATIONS = {
   // Nav
   "nav.dashboard":   { es: "Panel",            en: "Dashboard" },
   "nav.closedLoop":  { es: "Aprendizaje",      en: "Closed-Loop" },
@@ -301,17 +301,14 @@ const t = {
   "field.features_used_count":{ es: "Features utilizadas", en: "Features Used" },
 } as const;
 
-export type TKey = keyof typeof t;
-
 export function translate(
   key: string,
   lang: Lang,
-  vars?: Record<string, string | number>,
-  defaultValue?: string
+  vars?: Record<string, string | number>
 ): string {
-  const entry = (t as Record<string, { es: string; en: string }>)[key];
-  if (!entry) return defaultValue ?? key;
-  let str: string = entry[lang] ?? defaultValue ?? key;
+  const entry = (TRANSLATIONS as Record<string, { es: string; en: string }>)[key];
+  if (!entry) return key;
+  let str: string = entry[lang] ?? key;
   if (vars) {
     for (const [k, v] of Object.entries(vars)) {
       str = str.replace(`{${k}}`, String(v));
@@ -320,4 +317,9 @@ export function translate(
   return str;
 }
 
-export default t;
+/** Devuelve true si el key existe en las traducciones. */
+export function hasTranslation(key: string): boolean {
+  return key in (TRANSLATIONS as Record<string, unknown>);
+}
+
+export default TRANSLATIONS;

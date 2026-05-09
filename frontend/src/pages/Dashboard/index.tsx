@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccounts } from "../../hooks/useAccounts";
 import { useI18n } from "../../context/I18nContext";
@@ -6,6 +6,8 @@ import { RiskBadge } from "../../components/RiskBadge";
 import { CompanyAvatar } from "../../components/CompanyAvatar";
 import { ScoreBar } from "../../components/ScoreBar";
 import { SkeletonRow, SkeletonCard } from "../../components/Skeleton";
+import { SurfaceCard } from "../../components/SurfaceCard";
+import type { SurfaceTone } from "../../components/SurfaceCard";
 import { humanizeI18n, formatArr, formatRenewal } from "../../utils/format";
 import type { AccountFilter } from "../../api/accounts";
 
@@ -16,17 +18,25 @@ const renewalToneClass: Record<"urgent" | "soon" | "normal", string> = {
 };
 
 function StatCard({
-  label, value, accent, icon, sub,
-}: { label: string; value: string | number; accent: string; icon: React.ReactNode; sub?: string }) {
+  label, value, accent, icon, sub, tone, motionIndex,
+}: {
+  label: string;
+  value: string | number;
+  accent: string;
+  icon: ReactNode;
+  sub?: string;
+  tone: SurfaceTone;
+  motionIndex: number;
+}) {
   return (
-    <div className="bg-slate-900/70 rounded-lg p-4 border border-slate-800 hover:border-slate-700 transition-colors">
+    <SurfaceCard tone={tone} motionIndex={motionIndex} className="p-4">
       <div className="flex items-start justify-between mb-2">
         <p className="text-slate-500 text-[11px] uppercase tracking-widest font-semibold">{label}</p>
-        <span className={accent}>{icon}</span>
+        <span className={`${accent} transition-transform duration-300 group-hover:scale-110`}>{icon}</span>
       </div>
       <p className={`text-3xl font-bold tabular-nums ${accent}`}>{value}</p>
-      {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
-    </div>
+      {sub && <p className="text-xs text-slate-500 mt-1 leading-snug">{sub}</p>}
+    </SurfaceCard>
   );
 }
 
@@ -75,10 +85,10 @@ export default function Dashboard() {
           <><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
         ) : (
           <>
-            <StatCard label={t("dash.statTotal")} value={stats.total} accent="text-slate-100" icon={icons.total} sub={`${stats.total} ${t("dash.statActive")}`} />
-            <StatCard label={t("dash.statRisk")} value={stats.atRisk} accent="text-rose-400" icon={icons.risk} sub={`${stats.total ? ((stats.atRisk / stats.total) * 100).toFixed(0) : 0}% ${t("dash.statRiskSub")}`} />
-            <StatCard label={t("dash.statExpand")} value={stats.expansion} accent="text-sky-400" icon={icons.expand} sub={t("dash.statExpandSub")} />
-            <StatCard label={t("dash.statArr")} value={formatArr(stats.arrAtRisk)} accent="text-amber-400" icon={icons.arr} sub={t("dash.statArrSub")} />
+            <StatCard label={t("dash.statTotal")} value={stats.total} accent="text-slate-100" icon={icons.total} sub={`${stats.total} ${t("dash.statActive")}`} tone="neutral" motionIndex={0} />
+            <StatCard label={t("dash.statRisk")} value={stats.atRisk} accent="text-rose-400" icon={icons.risk} sub={`${stats.total ? ((stats.atRisk / stats.total) * 100).toFixed(0) : 0}% ${t("dash.statRiskSub")}`} tone="rose" motionIndex={1} />
+            <StatCard label={t("dash.statExpand")} value={stats.expansion} accent="text-sky-400" icon={icons.expand} sub={t("dash.statExpandSub")} tone="sky" motionIndex={2} />
+            <StatCard label={t("dash.statArr")} value={formatArr(stats.arrAtRisk)} accent="text-amber-400" icon={icons.arr} sub={t("dash.statArrSub")} tone="amber" motionIndex={3} />
           </>
         )}
       </div>
@@ -116,28 +126,30 @@ export default function Dashboard() {
       </div>
 
       {/* Table */}
-      <div className="bg-slate-900/40 rounded-xl border border-slate-800 overflow-hidden">
-        <table className="w-full text-sm">
+      <SurfaceCard weight="panel" tone="neutral" surface="data" hoverLift={false} motionIndex={4} className="overflow-hidden">
+        <div className="co-table-wrap">
+          <div className="co-table-shell">
+            <table className="co-table text-sm">
           <thead>
-            <tr className="bg-slate-900/80 border-b border-slate-800 text-slate-500 text-[11px] uppercase tracking-widest">
-              <th className="text-left px-4 py-3 font-semibold">{t("dash.colCompany")}</th>
-              <th className="text-left px-4 py-3 font-semibold">{t("dash.colIndustryPlan")}</th>
-              <th className="text-right px-4 py-3 font-semibold">{t("dash.colArr")}</th>
-              <th className="text-center px-4 py-3 font-semibold">{t("dash.colChurn")}</th>
-              <th className="text-center px-4 py-3 font-semibold">{t("dash.colExpand")}</th>
-              <th className="text-left px-4 py-3 font-semibold">{t("dash.colRenewal")}</th>
-              <th className="text-left px-4 py-3 font-semibold">{t("dash.colCsm")}</th>
+            <tr>
+              <th>{t("dash.colCompany")}</th>
+              <th>{t("dash.colIndustryPlan")}</th>
+              <th className="text-right">{t("dash.colArr")}</th>
+              <th className="text-center">{t("dash.colChurn")}</th>
+              <th className="text-center">{t("dash.colExpand")}</th>
+              <th>{t("dash.colRenewal")}</th>
+              <th>{t("dash.colCsm")}</th>
             </tr>
           </thead>
           <tbody>
             {loading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
 
             {error && (
-              <tr><td colSpan={7} className="p-12 text-center text-rose-400">Error: {error}</td></tr>
+              <tr><td colSpan={7} className="py-12 text-center text-sm text-rose-400">Error: {error}</td></tr>
             )}
 
             {!loading && !error && accounts.length === 0 && (
-              <tr><td colSpan={7} className="p-12 text-center text-slate-500">
+              <tr><td colSpan={7} className="py-12 text-center text-slate-500">
                 <p className="text-base mb-1">{t("global.noResults")}</p>
                 <p className="text-xs">{t("global.tryFilter")}</p>
               </td></tr>
@@ -151,9 +163,9 @@ export default function Dashboard() {
                   tabIndex={0}
                   onClick={() => navigate(`/accounts/${a.id}`)}
                   onKeyDown={(e) => { if (e.key === "Enter") navigate(`/accounts/${a.id}`); }}
-                  className="border-b border-slate-800/60 last:border-0 cursor-pointer transition-colors hover:bg-slate-800/40 focus:bg-slate-800/40 focus:outline-none group"
+                  className="cursor-pointer focus:outline-none group"
                 >
-                  <td className="px-4 py-3">
+                  <td>
                     <div className="flex items-center gap-3">
                       <CompanyAvatar name={a.name} />
                       <div>
@@ -162,25 +174,27 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="text-slate-300">
                     <div className="text-xs">{humanizeI18n(a.industry, t)}</div>
                     <div className="text-[11px] text-slate-500 capitalize">{a.plan}</div>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-slate-200 font-medium">{formatArr(a.arrUsd)}</td>
-                  <td className="px-4 py-3"><ScoreBar score={a.churnRiskScore} variant="risk" /></td>
-                  <td className="px-4 py-3"><ScoreBar score={a.expansionScore} variant="expansion" /></td>
-                  <td className="px-4 py-3">
+                  <td className="text-right tabular-nums text-slate-200 font-medium">{formatArr(a.arrUsd)}</td>
+                  <td className="text-center"><ScoreBar score={a.churnRiskScore} variant="risk" /></td>
+                  <td className="text-center"><ScoreBar score={a.expansionScore} variant="expansion" /></td>
+                  <td>
                     <span className={`px-2 py-1 rounded text-[11px] font-medium ${renewalToneClass[renewal.tone]}`}>
                       {renewal.label}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-400 text-xs">{a.csmAssigned}</td>
+                  <td className="text-slate-400 text-xs">{a.csmAssigned}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-      </div>
+          </div>
+        </div>
+      </SurfaceCard>
     </div>
   );
 }

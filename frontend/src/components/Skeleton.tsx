@@ -1,9 +1,9 @@
 export function SkeletonRow() {
   return (
-    <tr className="border-b border-slate-800/60">
+    <tr>
       {Array.from({ length: 7 }).map((_, i) => (
-        <td key={i} className="px-4 py-3.5">
-          <div className="h-3 bg-slate-700/40 rounded animate-pulse" />
+        <td key={i}>
+          <div className="h-3 bg-slate-700/35 rounded-md animate-pulse" />
         </td>
       ))}
     </tr>
@@ -12,9 +12,12 @@ export function SkeletonRow() {
 
 export function SkeletonCard() {
   return (
-    <div className="bg-slate-900/60 rounded-lg p-4 border border-slate-800">
-      <div className="h-3 w-16 bg-slate-700/40 rounded animate-pulse mb-3" />
-      <div className="h-7 w-20 bg-slate-700/40 rounded animate-pulse" />
+    <div className="relative isolate overflow-hidden rounded-xl border border-slate-800/90 bg-[linear-gradient(163deg,rgba(17,24,39,0.85)_0%,rgba(8,11,18,0.92)_100%)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="pointer-events-none absolute inset-0 sc-card-noise opacity-80" aria-hidden />
+      <div className="relative z-[1] space-y-3">
+        <div className="h-3 w-16 bg-slate-700/35 rounded-md animate-pulse" />
+        <div className="h-8 w-24 bg-slate-700/30 rounded-md animate-pulse" />
+      </div>
     </div>
   );
 }

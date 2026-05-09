@@ -7,7 +7,8 @@ import { RiskBadge } from "../../components/RiskBadge";
 import { Timeline } from "../../components/Timeline";
 import { ScoreBar } from "../../components/ScoreBar";
 import { InterventionModal } from "../../components/InterventionModal";
-import { humanize, humanizeI18n, formatArr, formatRenewal, daysUntil } from "../../utils/format";
+import { SurfaceCard } from "../../components/SurfaceCard";
+import { humanizeI18n, formatArr, formatRenewal, daysUntil } from "../../utils/format";
 
 const SVG = {
   width: 16, height: 16, viewBox: "0 0 24 24",
@@ -73,7 +74,7 @@ export default function AccountDetail() {
       </Link>
 
       {/* Hero header */}
-      <header className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">
+      <SurfaceCard weight="panel" tone="indigo" hoverLift={false} motionIndex={0} className="p-6">
         <div className="flex items-start gap-4 mb-6">
           <CompanyAvatar name={account.name} size="lg" />
           <div className="flex-1 min-w-0">
@@ -106,21 +107,21 @@ export default function AccountDetail() {
             sub={account.lastQbrDate ? `${t("detail.labelMonthsAgo")} ${Math.floor((Date.now() - new Date(account.lastQbrDate).getTime()) / (1000*60*60*24*30))}` : undefined}
           />
         </div>
-      </header>
+      </SurfaceCard>
 
       {/* Body */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <section className="lg:col-span-2 bg-slate-900/40 border border-slate-800 rounded-xl p-6">
+        <SurfaceCard weight="panel" tone="neutral" hoverLift={false} motionIndex={1} className="lg:col-span-2 p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-sm font-semibold text-white tracking-tight">{t("detail.activity")}</h2>
             <span className="text-[11px] text-slate-500">{events.length} {t("detail.events")}</span>
           </div>
           <Timeline events={events} />
-        </section>
+        </SurfaceCard>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           {/* Crystal Ball */}
-          <div className="bg-gradient-to-br from-rose-500/10 to-slate-900/40 border border-rose-500/20 rounded-xl p-5">
+          <SurfaceCard tone="rose" motionIndex={2} className="p-5 bg-[linear-gradient(155deg,rgba(190,18,60,0.08)_0%,rgba(10,12,18,0.92)_55%,rgba(6,8,14,0.96)_100%)]">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-7 h-7 rounded-md bg-rose-500/20 flex items-center justify-center">
                 <svg {...SVG} className="text-rose-300"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
@@ -153,10 +154,10 @@ export default function AccountDetail() {
                 {account.health.crystalBallReasoning}
               </p>
             </details>
-          </div>
+          </SurfaceCard>
 
           {/* Expansion */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5">
+          <SurfaceCard tone="sky" motionIndex={3} className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-7 h-7 rounded-md bg-sky-500/20 flex items-center justify-center">
                 <svg {...SVG} className="text-sky-300"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
@@ -178,7 +179,7 @@ export default function AccountDetail() {
             <p className="text-xs text-slate-400 mt-3 leading-relaxed">
               {account.health.readyToExpand ? t("detail.expandYes") : t("detail.expandNo")}
             </p>
-          </div>
+          </SurfaceCard>
 
           {/* CTA */}
           <button

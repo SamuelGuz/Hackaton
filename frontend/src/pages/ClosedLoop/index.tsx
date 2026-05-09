@@ -3,6 +3,8 @@ import { usePlaybooks } from "../../hooks/usePlaybooks";
 import { useI18n } from "../../context/I18nContext";
 import { PlaybookEvolutionCard } from "../../components/PlaybookEvolutionCard";
 import { PlaybookRow } from "../../components/PlaybookRow";
+import { SurfaceCard } from "../../components/SurfaceCard";
+import type { SurfaceTone } from "../../components/SurfaceCard";
 import { useCountUp } from "../../hooks/useCountUp";
 import type { Playbook } from "../../types";
 
@@ -14,17 +16,27 @@ const SVG = {
   strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
 };
 
-function StatBlock({ label, value, suffix, sub, accent = "text-slate-100" }: { label: string; value: number; suffix?: string; sub: string; accent?: string }) {
+function StatBlock({
+  label, value, suffix, sub, accent = "text-slate-100", tone, motionIndex,
+}: {
+  label: string;
+  value: number;
+  suffix?: string;
+  sub: string;
+  accent?: string;
+  tone: SurfaceTone;
+  motionIndex: number;
+}) {
   const animated = useCountUp(value, 1000);
   const display = suffix === "%" ? animated.toFixed(0) : Math.round(animated).toString();
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4">
+    <SurfaceCard tone={tone} motionIndex={motionIndex} className="p-4">
       <p className="text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">{label}</p>
       <p className={`text-3xl font-bold tabular-nums ${accent}`}>
         {display}<span className="text-base font-normal text-slate-500">{suffix}</span>
       </p>
-      <p className="text-[11px] text-slate-500 mt-1">{sub}</p>
-    </div>
+      <p className="text-[11px] text-slate-500 mt-1 leading-snug">{sub}</p>
+    </SurfaceCard>
   );
 }
 
@@ -90,16 +102,16 @@ export default function ClosedLoop() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatBlock label={t("cl.statActive")} value={stats.total} sub={t("cl.statActiveSub")} accent="text-slate-100" />
-        <StatBlock label={t("cl.statUses")} value={stats.totalUses} sub={t("cl.statUsesSub")} accent="text-slate-100" />
-        <StatBlock label={t("cl.statRate")} value={succPct} suffix="%" sub={t("cl.statRateSub")} accent="text-emerald-300" />
-        <StatBlock label={t("cl.statIter")} value={stats.versionsLearned} sub={t("cl.statIterSub")} accent="text-indigo-300" />
+        <StatBlock label={t("cl.statActive")} value={stats.total} sub={t("cl.statActiveSub")} accent="text-slate-100" tone="neutral" motionIndex={0} />
+        <StatBlock label={t("cl.statUses")} value={stats.totalUses} sub={t("cl.statUsesSub")} accent="text-slate-100" tone="indigo" motionIndex={1} />
+        <StatBlock label={t("cl.statRate")} value={succPct} suffix="%" sub={t("cl.statRateSub")} accent="text-emerald-300" tone="emerald" motionIndex={2} />
+        <StatBlock label={t("cl.statIter")} value={stats.versionsLearned} sub={t("cl.statIterSub")} accent="text-indigo-300" tone="violet" motionIndex={3} />
       </div>
 
       <PlaybookEvolutionCard evolution={featured} />
 
-      <section className="bg-slate-900/40 border border-slate-800 rounded-2xl overflow-hidden">
-        <header className="px-6 py-4 border-b border-slate-800 flex items-center justify-between flex-wrap gap-3">
+      <SurfaceCard weight="panel" tone="neutral" surface="data" hoverLift={false} motionIndex={4} className="overflow-hidden">
+        <header className="px-6 py-4 border-b border-slate-800/70 flex items-center justify-between flex-wrap gap-3 bg-slate-950/20">
           <div>
             <h2 className="text-sm font-semibold text-white tracking-tight">{t("cl.libTitle")}</h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -119,13 +131,15 @@ export default function ClosedLoop() {
           </div>
         </header>
 
-        <table className="w-full text-sm">
+        <div className="co-table-wrap">
+          <div className="co-table-shell">
+            <table className="co-table text-sm">
           <thead>
-            <tr className="bg-slate-900/60 border-b border-slate-800 text-slate-500 text-[11px] uppercase tracking-widest">
-              <th className="text-left px-4 py-3 font-semibold">{t("cl.colPlaybook")}</th>
-              <th className="text-left px-4 py-3 font-semibold">{t("cl.colProfile")}</th>
-              <th className="text-right px-4 py-3 font-semibold">{t("cl.colUses")}</th>
-              <th className="text-right px-4 py-3 font-semibold">{t("cl.colRate")}</th>
+            <tr>
+              <th>{t("cl.colPlaybook")}</th>
+              <th>{t("cl.colProfile")}</th>
+              <th className="text-right">{t("cl.colUses")}</th>
+              <th className="text-right">{t("cl.colRate")}</th>
             </tr>
           </thead>
           <tbody>
@@ -141,7 +155,9 @@ export default function ClosedLoop() {
             ))}
           </tbody>
         </table>
-      </section>
+          </div>
+        </div>
+      </SurfaceCard>
     </div>
   );
 }

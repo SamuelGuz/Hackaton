@@ -5,8 +5,7 @@ import { translate, type Lang } from "../i18n/translations";
 interface I18nCtx {
   lang: Lang;
   setLang: (l: Lang) => void;
-  /** Traduce un key. Si no existe, usa defaultValue o el key como fallback. */
-  t: (key: string, vars?: Record<string, string | number>, defaultValue?: string) => string;
+  t: (key: string, vars?: Record<string, string | number>) => string;
 }
 
 const Ctx = createContext<I18nCtx | null>(null);
@@ -33,8 +32,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const t = useCallback(
-    (key: string, vars?: Record<string, string | number>, defaultValue?: string) =>
-      translate(key, lang, vars, defaultValue),
+    (key: string, vars?: Record<string, string | number>) => translate(key, lang, vars),
     [lang]
   );
 

@@ -5,21 +5,19 @@ export function humanize(snakeCase: string): string {
     .join(" ");
 }
 
-type TFnGeneric = (key: string, vars?: Record<string, string | number>, defaultValue?: string) => string;
+import { hasTranslation } from "../i18n/translations";
+
+type TFnGeneric = (key: string, vars?: Record<string, string | number>) => string;
 
 /**
  * Traduce un snake_case key del API.
- * Busca primero "signal.{key}" y "field.{key}" en las traducciones.
- * Si no existe ninguno, cae a humanize() como fallback en inglés.
+ * Busca "signal.{key}" primero, luego "field.{key}".
+ * Si no existe ninguno, cae a humanize() como fallback.
  */
 export function humanizeI18n(key: string, t: TFnGeneric): string {
-  const fallback = humanize(key);
-  // Intenta signal.key, luego field.key, luego el fallback humanizado
-  const fromSignal = t(`signal.${key}`, undefined, "");
-  if (fromSignal) return fromSignal;
-  const fromField = t(`field.${key}`, undefined, "");
-  if (fromField) return fromField;
-  return fallback;
+  if (hasTranslation(`signal.${key}`)) return t(`signal.${key}`);
+  if (hasTranslation(`field.${key}`))  return t(`field.${key}`);
+  return humanize(key);
 }
 
 export function formatArr(usd: number): string {

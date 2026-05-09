@@ -33,3 +33,212 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 8px; }
 ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+/* ─── Navbar styles ──────────────────────────────────────────── */
+
+/* Base states */
+.navbar-top {
+  background: rgba(10, 12, 17, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(30, 41, 59, 0.5);
+}
+
+.navbar-scrolled {
+  background: rgba(7, 9, 14, 0.88);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+  box-shadow:
+    0 4px 32px -4px rgba(0, 0, 0, 0.5),
+    0 0 0 0.5px rgba(99, 102, 241, 0.08) inset;
+}
+
+/* Gradient animated line at the bottom */
+.navbar-gradient-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(99, 102, 241, 0) 10%,
+    rgba(99, 102, 241, 0.7) 30%,
+    rgba(168, 85, 247, 0.9) 50%,
+    rgba(99, 102, 241, 0.7) 70%,
+    rgba(99, 102, 241, 0) 90%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: navbar-line-flow 4s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes navbar-line-flow {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* Logo icon – animated gradient */
+.navbar-logo-icon {
+  background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+  background-size: 200% 200%;
+  animation: logo-gradient-shift 4s ease infinite;
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.4);
+}
+
+@keyframes logo-gradient-shift {
+  0%   { background-position: 0% 0%; }
+  50%  { background-position: 100% 100%; }
+  100% { background-position: 0% 0%; }
+}
+
+/* Logo halo – pulsing glow ring */
+.navbar-logo-halo {
+  position: absolute;
+  inset: -4px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.35), rgba(168,85,247,0.35));
+  filter: blur(8px);
+  animation: logo-halo-pulse 3s ease-in-out infinite;
+  z-index: 0;
+}
+
+@keyframes logo-halo-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.15); }
+}
+
+/* Brand name gradient text */
+.navbar-brand-text {
+  background: linear-gradient(90deg, #e2e8f0 0%, #a5b4fc 60%, #c4b5fd 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Active nav pill */
+.navbar-active-pill {
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  box-shadow:
+    0 0 12px rgba(99, 102, 241, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Live dot ring */
+.navbar-live-ring {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(52, 211, 153, 0.6);
+  animation: live-ring-pulse 2s ease-out infinite;
+}
+
+@keyframes live-ring-pulse {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  70%  { transform: scale(2);   opacity: 0; }
+  100% { transform: scale(2);   opacity: 0; }
+}
+
+/* ─── Surface cards (textura + capas) ─────────────────────────── */
+
+.sc-card-noise {
+  opacity: 0.042;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+
+/* ─── Tablas dentro de paneles (misma familia que SurfaceCard, lectura rejilla) ─ */
+
+.co-table-wrap {
+  padding: 0.35rem 0.4rem 0.5rem;
+}
+
+.co-table-shell {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(6, 10, 18, 0.55) 0%, rgba(4, 7, 12, 0.75) 100%);
+}
+
+/* Contenedor tipo “data”: una sola superficie, tabla pegada al panel */
+.surface-card-data .co-table-wrap {
+  padding: 0;
+}
+
+.surface-card-data .co-table-shell {
+  border-radius: 0;
+  background: transparent;
+}
+
+.co-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.co-table thead th {
+  padding: 0.65rem 1rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(148, 163, 184);
+  text-align: left;
+  vertical-align: bottom;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.22) 100%);
+  border-bottom: 1px solid rgba(51, 65, 85, 0.22);
+}
+
+/* Cabeceras con subtítulo (p. ej. preview import) */
+.co-table.co-table-head-plain thead th {
+  text-transform: none;
+  letter-spacing: 0.03em;
+  font-size: 0.6875rem;
+  vertical-align: top;
+}
+
+.co-table tbody td {
+  padding: 0.7rem 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.28);
+  transition: background-color 0.14s ease;
+}
+
+.co-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.co-table tbody tr:not(.co-table-expand):hover td {
+  background-color: rgba(99, 102, 241, 0.06);
+}
+
+.co-table tbody tr:not(.co-table-expand):focus-within td {
+  background-color: rgba(99, 102, 241, 0.08);
+}
+
+.co-table tbody tr.co-table-row-active td {
+  background-color: rgba(30, 41, 59, 0.42);
+}
+
+.co-table tbody tr.co-table-row-active:hover td {
+  background-color: rgba(36, 44, 62, 0.55);
+}
+
+.co-table tbody tr.co-table-expand td {
+  background: rgba(12, 18, 30, 0.75);
+  border-bottom: 1px solid rgba(51, 65, 85, 0.2);
+  padding-top: 0.35rem;
+}
+
+.co-table-sm thead th {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.5625rem;
+}
+
+.co-table-sm tbody td {
+  padding: 0.5rem 0.75rem;
+}

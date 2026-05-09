@@ -199,9 +199,9 @@ export function buildAccounts(
   return { accounts, errors };
 }
 
-type TFnSimple = (key: string) => string;
+type TFn = (key: string) => string;
 
-export function fieldLabel(key: FieldKey, t?: TFnSimple): string {
+export function fieldLabel(key: FieldKey, t?: TFn): string {
   if (key === "ignore") return t ? t("fieldLabel.ignore") : "— ignore column —";
   if (t) return t(`fieldLabel.${key}`);
   return FIELD_BY_KEY.get(key)?.label ?? key;

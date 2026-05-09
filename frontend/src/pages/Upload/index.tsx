@@ -6,7 +6,9 @@ import {
 } from "../../utils/columnMapper";
 import { useDataContext } from "../../context/DataContext";
 import { useToast } from "../../components/Toast";
+import { SurfaceCard } from "../../components/SurfaceCard";
 import { useI18n } from "../../context/I18nContext";
+import { motion } from "framer-motion";
 import { formatArr } from "../../utils/format";
 
 type Phase = "idle" | "parsing" | "map" | "success";
@@ -115,7 +117,7 @@ export default function Upload() {
       </div>
 
       {customAccounts && phase !== "success" && (
-        <div className="px-4 py-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg flex items-center justify-between gap-3">
+        <SurfaceCard tone="emerald" hoverLift={false} motionless className="px-4 py-3 flex items-center justify-between gap-3 border-emerald-500/25">
           <div className="text-xs">
             <p className="text-emerald-300 font-semibold mb-0.5">
               {t("up.activeBanner", { n: customAccounts.length })}
@@ -128,11 +130,11 @@ export default function Upload() {
           >
             {t("up.resetDemo")}
           </button>
-        </div>
+        </SurfaceCard>
       )}
 
       {/* Stepper */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-slate-900/40 border border-slate-800 rounded-lg">
+      <SurfaceCard weight="panel" tone="neutral" hoverLift={false} motionIndex={0} className="flex items-center gap-3 px-4 py-3">
         {STEPS.map((s, i) => (
           <div key={s.phase} className="flex items-center gap-3">
             <StepBadge
@@ -144,49 +146,61 @@ export default function Upload() {
             {i < STEPS.length - 1 && <div className="w-8 h-px bg-slate-700" />}
           </div>
         ))}
-      </div>
+      </SurfaceCard>
 
       {/* Idle / parsing */}
       {(phase === "idle" || phase === "parsing") && (
-        <div
+        <motion.div
+          layout
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
-          className={`rounded-2xl border-2 border-dashed p-12 text-center transition-colors ${dragOver ? "bg-indigo-500/10 border-indigo-500/60" : "bg-slate-900/40 border-slate-700"}`}
+          initial={{ opacity: 0, scale: 0.985 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          className={[
+            "relative isolate overflow-hidden rounded-2xl border-2 border-dashed p-12 text-center transition-colors duration-300",
+            dragOver
+              ? "border-indigo-400/70 bg-indigo-500/[0.08] shadow-[0_0_0_1px_rgba(99,102,241,0.2),0_24px_60px_-28px_rgba(79,70,229,0.35)]"
+              : "border-slate-600/80 bg-slate-950/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+          ].join(" ")}
         >
-          {phase === "parsing" ? (
-            <>
-              <div className="w-10 h-10 mx-auto mb-4 border-2 border-slate-600 border-t-indigo-400 rounded-full animate-spin" />
-              <p className="text-sm text-slate-300 font-medium">{t("up.parsing")} {file?.name}...</p>
-            </>
-          ) : (
-            <>
-              <div className="w-14 h-14 mx-auto mb-4 rounded-xl bg-indigo-500/15 text-indigo-300 flex items-center justify-center">
-                <svg {...SVG} width="26" height="26"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
-              </div>
-              <p className="text-base font-semibold text-white mb-1">{t("up.dropTitle")}</p>
-              <p className="text-sm text-slate-400 mb-5">{t("up.dropOr")}</p>
-              <div className="flex items-center justify-center gap-2">
-                <label className="cursor-pointer px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-md transition-colors">
-                  {t("up.selectFile")}
-                  <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
-                </label>
-                <button onClick={() => downloadTemplate(t)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5">
-                  <svg {...SVG} width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  {t("up.downloadTpl")}
-                </button>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-5">{t("up.local")}</p>
-            </>
-          )}
-        </div>
+          <div className="pointer-events-none absolute inset-0 sc-card-noise opacity-50" aria-hidden />
+          <div className="relative z-[1]">
+            {phase === "parsing" ? (
+              <>
+                <div className="w-10 h-10 mx-auto mb-4 border-2 border-slate-600 border-t-indigo-400 rounded-full animate-spin" />
+                <p className="text-sm text-slate-300 font-medium">{t("up.parsing")} {file?.name}...</p>
+              </>
+            ) : (
+              <>
+                <div className="w-14 h-14 mx-auto mb-4 rounded-xl bg-indigo-500/15 text-indigo-300 flex items-center justify-center">
+                  <svg {...SVG} width="26" height="26"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+                </div>
+                <p className="text-base font-semibold text-white mb-1">{t("up.dropTitle")}</p>
+                <p className="text-sm text-slate-400 mb-5">{t("up.dropOr")}</p>
+                <div className="flex items-center justify-center gap-2">
+                  <label className="cursor-pointer px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-md transition-colors">
+                    {t("up.selectFile")}
+                    <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+                  </label>
+                  <button onClick={() => downloadTemplate(t)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5">
+                    <svg {...SVG} width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    {t("up.downloadTpl")}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-5">{t("up.local")}</p>
+              </>
+            )}
+          </div>
+        </motion.div>
       )}
 
       {/* Map */}
       {phase === "map" && parsed && (
         <>
           <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-slate-900/40 border border-slate-800 rounded-xl p-5">
+            <SurfaceCard weight="panel" tone="indigo" hoverLift={false} motionIndex={0} className="lg:col-span-2 p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-sm font-semibold text-white">{t("up.mapTitle")}</h2>
@@ -226,9 +240,9 @@ export default function Upload() {
                   );
                 })}
               </div>
-            </div>
+            </SurfaceCard>
 
-            <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-5 lg:sticky lg:top-24 lg:self-start">
+            <SurfaceCard tone="sky" hoverLift={false} motionIndex={1} className="p-5 lg:sticky lg:top-24 lg:self-start">
               <h3 className="text-sm font-semibold text-white mb-3">{t("up.validTitle")}</h3>
               {requiredMissing.length === 0 ? (
                 <div className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-md flex items-center gap-2 mb-3">
@@ -253,32 +267,33 @@ export default function Upload() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </SurfaceCard>
           </div>
 
           {/* Preview */}
-          <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-800">
+          <SurfaceCard weight="panel" tone="neutral" surface="data" hoverLift={false} motionIndex={2} className="overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-800/70 bg-slate-950/15">
               <h3 className="text-sm font-semibold text-white">{t("up.previewTitle")}</h3>
               <p className="text-xs text-slate-500 mt-0.5">{t("up.previewSub")}</p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-900/60 text-slate-500 uppercase tracking-widest text-[10px]">
+            <div className="co-table-wrap">
+              <div className="co-table-shell overflow-x-auto">
+                <table className="co-table co-table-sm co-table-head-plain text-xs">
+                <thead>
                   <tr>
                     {Object.entries(mapping).filter(([, v]) => v !== "ignore").map(([header, field]) => (
-                      <th key={header} className="text-left px-3 py-2 font-semibold">
-                        <div className="text-slate-300 normal-case tracking-normal text-xs">{fieldLabel(field as FieldKey, t)}</div>
-                        <div className="text-[10px] text-slate-500">{t("up.from")} "{header}"</div>
+                      <th key={header}>
+                        <div className="text-slate-300 normal-case tracking-normal text-[11px] font-semibold">{fieldLabel(field as FieldKey, t)}</div>
+                        <div className="text-[10px] text-slate-500 normal-case tracking-normal font-medium mt-0.5">{t("up.from")} "{header}"</div>
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {parsed.rows.slice(0, 5).map((row, i) => (
-                    <tr key={i} className="border-t border-slate-800/40">
+                    <tr key={i}>
                       {Object.entries(mapping).filter(([, v]) => v !== "ignore").map(([header]) => (
-                        <td key={header} className="px-3 py-2 text-slate-300 truncate max-w-[200px]">
+                        <td key={header} className="text-slate-300 truncate max-w-[200px]">
                           {String(row[header] ?? "—") || "—"}
                         </td>
                       ))}
@@ -286,8 +301,9 @@ export default function Upload() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
-          </div>
+          </SurfaceCard>
 
           <div className="flex items-center justify-between gap-3">
             <button onClick={startOver} className="text-sm font-medium text-slate-400 hover:text-white transition-colors">
@@ -307,7 +323,7 @@ export default function Upload() {
 
       {/* Success */}
       {phase === "success" && (
-        <div className="bg-gradient-to-br from-emerald-500/10 to-slate-900/40 border border-emerald-500/30 rounded-2xl p-12 text-center">
+        <SurfaceCard weight="panel" tone="emerald" hoverLift={false} motionless className="p-12 text-center bg-[linear-gradient(165deg,rgba(6,78,59,0.12)_0%,rgba(10,14,22,0.92)_45%,rgba(6,8,14,0.96)_100%)]">
           <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
             <svg {...SVG} width="26" height="26" strokeWidth={3} className="text-emerald-300"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
@@ -326,7 +342,7 @@ export default function Upload() {
               {t("up.importAnother")}
             </button>
           </div>
-        </div>
+        </SurfaceCard>
       )}
     </div>
   );
