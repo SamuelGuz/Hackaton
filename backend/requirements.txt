@@ -12,3 +12,5 @@ tqdm
 pytest
 openpyxl
 python-multipart
+twilio>=9.0
+websockets>=12

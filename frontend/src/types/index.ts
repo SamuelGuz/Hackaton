@@ -248,10 +248,11 @@ export interface ChannelDelivery {
   status: "pending" | "sent" | "delivered" | "failed";
 }
 
-/** Sesión live (ej. ConvAI WebSocket) que el dispatch puede inicializar. */
+/** Datos de sesión de voz cuando se despacha por phone call (Twilio PSTN). */
 export interface DispatchSession {
-  sessionMode?: "convai";
-  signedUrl?: string;
+  sessionMode?: "twilio_pstn";
+  callSid?: string;
+  toPhone?: string;
 }
 
 export interface DispatchResponse extends DispatchSession {
@@ -291,8 +292,9 @@ export interface ChannelDispatchResult {
   channel: InterventionChannel;
   status: "delivered" | "failed";
   error?: string;
-  /** voice_call: ConvAI WebSocket signed URL devuelto por ElevenLabs. */
-  signedUrl?: string;
+  /** voice_call: Twilio Call SID para seguimiento de estado/hangup. */
+  callSid?: string;
+  toPhone?: string;
 }
 
 export interface CreateAccountPayload {
