@@ -152,27 +152,99 @@ def _update_intervention(intervention_id: str, data: dict) -> None:
 
 
 def _classify_outcome_llm(content: str) -> tuple[str, str]:
-    """Usa el LLM barato para clasificar la respuesta del cliente como success o negative."""
+    """Clasifica la respuesta del cliente en churned / negative / success.
+
+    Prompt bilingüe (EN+ES). Devuelve tupla (outcome, notas).
+    Fallback: 'no_response' (no asume éxito) si el LLM falla.
+    """
     try:
         from backend.shared.llm_client import get_llm_client, haiku_model
         llm = get_llm_client()
-        result = llm.complete(
-            f"""Classify this customer reply to a business email.
-Reply with ONLY one word: success or negative
-- negative: customer is not interested, wants to cancel, unsubscribe, or explicitly rejects
-- success: customer engages, asks questions, or any other response
+        prompt = f"""You are classifying a customer's reply to a business outreach.
+Estás clasificando la respuesta de un cliente a un mensaje comercial.
 
-Customer reply:
-{content[:800]}""",
+Reply with ONLY ONE WORD, exactly: churned, negative, or success.
+Responde con UNA SOLA PALABRA, exactamente: churned, negative, o success.
+
+Categories / Categorías:
+
+- churned: The customer EXPLICITLY says they want to cancel, unsubscribe, leave,
+  terminate the contract, end the service, or not renew.
+  El cliente DICE EXPLÍCITAMENTE que quiere cancelar, darse de baja, irse,
+  terminar el contrato, finalizar el servicio o no renovar.
+  Examples / Ejemplos:
+    "I want to cancel my subscription"
+    "Please cancel my account"
+    "We are leaving / switching providers"
+    "Quiero cancelar la suscripción"
+    "Voy a cancelar"
+    "Dame de baja"
+    "No vamos a renovar"
+    "Nos vamos con la competencia"
+
+- negative: The customer rejects the offer, is not interested, complains, or
+  expresses dissatisfaction WITHOUT explicitly cancelling.
+  El cliente rechaza la oferta, no está interesado, se queja o expresa
+  insatisfacción SIN cancelar explícitamente.
+  Examples / Ejemplos:
+    "Not interested right now"
+    "No thanks"
+    "This is too expensive"
+    "I'm unhappy with the service"
+    "No me interesa"
+    "No gracias"
+    "Está muy caro"
+    "Estoy insatisfecho"
+
+- success: The customer engages positively, asks questions, requests info,
+  schedules a call, says thanks, or shows any interest.
+  El cliente responde de forma positiva, hace preguntas, pide información,
+  agenda una llamada, agradece o muestra interés.
+  Examples / Ejemplos:
+    "Sounds great, let's talk"
+    "Can you send more details?"
+    "Thanks!"
+    "Suena bien, hablemos"
+    "¿Me puedes dar más información?"
+    "Gracias"
+
+CRITICAL / IMPORTANTE:
+- If the customer explicitly mentions cancelling/unsubscribing → churned (NEVER success).
+- Si el cliente menciona explícitamente cancelar/darse de baja → churned (NUNCA success).
+- When in doubt between negative and success, choose negative.
+- Si dudas entre negative y success, elige negative.
+
+Customer reply / Respuesta del cliente:
+\"\"\"
+{content[:800]}
+\"\"\"
+
+One word answer / Una palabra:"""
+        result = llm.complete(
+            prompt,
             model=haiku_model(),
             max_tokens=10,
             temperature=0.0,
         )
-        outcome = "negative" if "negative" in result.lower() else "success"
+        normalized = result.strip().lower()
+        if "churned" in normalized or "churn" in normalized:
+            outcome = "churned"
+        elif "negative" in normalized:
+            outcome = "negative"
+        elif "success" in normalized:
+            outcome = "success"
+        else:
+            logger.warning(
+                "LLM returned unexpected outcome label: %r — defaulting to negative",
+                result,
+            )
+            outcome = "negative"
         return outcome, f"Clasificado por IA: {result.strip()}"
     except Exception as exc:
-        logger.warning("LLM outcome classification failed, defaulting to success: %s", exc)
-        return "success", "Respuesta recibida (clasificación IA no disponible)"
+        logger.warning(
+            "LLM outcome classification failed, defaulting to no_response: %s", exc
+        )
+        return "no_response", "Respuesta recibida (clasificación IA no disponible)"
 
 
 def _apply_playbook_outcome(sb: Client, playbook_id: str, outcome: str) -> None:
