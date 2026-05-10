@@ -281,15 +281,18 @@ def receive_conversation(body: ConversationPayload):
     # Buscar account_id si no vino en el payload (por intervention_id)
     account_id = body.account_id
     if not account_id and body.intervention_id:
-        row = (
-            sb.table("interventions")
-            .select("account_id")
-            .eq("id", body.intervention_id)
-            .maybe_single()
-            .execute()
-        )
-        if row.data:
-            account_id = row.data["account_id"]
+        try:
+            row = (
+                sb.table("interventions")
+                .select("account_id")
+                .eq("id", body.intervention_id)
+                .maybe_single()
+                .execute()
+            )
+            if row.data:
+                account_id = row.data["account_id"]
+        except Exception:
+            pass
 
     if not account_id:
         raise HTTPException(
