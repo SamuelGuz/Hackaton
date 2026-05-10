@@ -6,9 +6,10 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 
 export type SelectOption<T extends string> = {
@@ -111,6 +112,7 @@ export function Select<T extends string>({
   const [query, setQuery] = useState("");
   const [highlightIdx, setHighlightIdx] = useState(0);
   const [dropDir, setDropDir] = useState<"down" | "up">("down");
+  const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
 
   const selectedOption = useMemo(
     () => options.find((o) => o.value === value) ?? options[0],
@@ -130,6 +132,33 @@ export function Select<T extends string>({
     setQuery("");
     setTimeout(() => triggerRef.current?.focus(), 0);
   }, []);
+
+  // Recalcula posición y dirección del panel a partir del trigger.
+  const updatePanelPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const desired = 360;
+    const margin = 8;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const goUp = spaceBelow < desired && spaceAbove > spaceBelow;
+    setDropDir(goUp ? "up" : "down");
+
+    const style: CSSProperties = {
+      position: "fixed",
+      left: Math.round(rect.left),
+    };
+    if (!panelWidthClass) {
+      style.width = Math.round(rect.width);
+    }
+    if (goUp) {
+      style.bottom = Math.round(window.innerHeight - rect.top + margin);
+    } else {
+      style.top = Math.round(rect.bottom + margin);
+    }
+    setPanelStyle(style);
+  }, [panelWidthClass]);
 
   // Cuando se abre: enfoca search (si aplica) y resalta la opción seleccionada.
   useEffect(() => {
@@ -171,19 +200,23 @@ export function Select<T extends string>({
     };
   }, [open, close]);
 
-  // Decide si abre arriba o abajo según el espacio disponible.
+  // Calcula la posición inicial del panel cuando se abre.
   useLayoutEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const desired = 360;
-    if (spaceBelow < desired && spaceAbove > spaceBelow) {
-      setDropDir("up");
-    } else {
-      setDropDir("down");
-    }
-  }, [open]);
+    if (!open) return;
+    updatePanelPosition();
+  }, [open, updatePanelPosition]);
+
+  // Reposiciona el panel mientras está abierto (scroll/resize en cualquier ancestro).
+  useEffect(() => {
+    if (!open) return;
+    const onScrollOrResize = () => updatePanelPosition();
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [open, updatePanelPosition]);
 
   // Scroll al item resaltado.
   useEffect(() => {
@@ -251,10 +284,132 @@ export function Select<T extends string>({
   };
 
   const panelClasses = [
-    "absolute z-30",
-    panelWidthClass ?? "left-0 right-0",
-    dropDir === "down" ? "top-full mt-2 origin-top" : "bottom-full mb-2 origin-bottom",
-  ].join(" ");
+    panelWidthClass ?? "",
+    dropDir === "down" ? "origin-top" : "origin-bottom",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  // Panel renderizado vía portal en <body> con position: fixed.
+  // Esto evita que el dropdown sea recortado por contenedores con
+  // `overflow-hidden`/`isolate` (p. ej. SurfaceCard) o se quede detrás
+  // por culpa de stacking contexts en padres.
+  const panel = (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          ref={panelRef}
+          role="listbox"
+          id={`${id}-listbox`}
+          tabIndex={-1}
+          onKeyDown={onPanelKey}
+          style={panelStyle}
+          initial={{ opacity: 0, scale: 0.96, y: dropDir === "down" ? -4 : 4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.97, y: dropDir === "down" ? -4 : 4 }}
+          transition={{ type: "spring", stiffness: 520, damping: 38, mass: 0.6 }}
+          className={[
+            panelClasses,
+            "z-[1000]",
+            "rounded-xl border border-slate-700/70 bg-slate-900/95 backdrop-blur",
+            "shadow-2xl shadow-black/50 ring-1 ring-black/5 overflow-hidden",
+          ].join(" ")}
+        >
+          {searchable && (
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800/70">
+              <span className="text-slate-500"><SearchIcon /></span>
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={searchPlaceholder ?? "Buscar..."}
+                className="flex-1 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none tabular-nums"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    searchInputRef.current?.focus();
+                  }}
+                  className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+                  aria-label="Limpiar búsqueda"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          )}
+
+          <div
+            ref={listRef}
+            className="max-h-72 overflow-y-auto py-1 co-select-scroll"
+          >
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-6 text-center text-xs text-slate-500">
+                {emptyText ?? "Sin resultados"}
+              </div>
+            ) : (
+              filteredOptions.map((opt, idx) => {
+                const selected = opt.value === value;
+                const highlighted = idx === highlightIdx;
+                return (
+                  <div
+                    key={opt.value}
+                    ref={(el) => {
+                      optionRefs.current[idx] = el;
+                    }}
+                    role="option"
+                    aria-selected={selected}
+                    aria-disabled={opt.disabled}
+                    onMouseEnter={() => setHighlightIdx(idx)}
+                    onClick={() => !opt.disabled && commit(opt.value)}
+                    className={[
+                      "mx-1 my-0.5 rounded-md px-2.5 py-1.5 flex items-center gap-2 text-sm cursor-pointer select-none",
+                      "transition-colors duration-100",
+                      opt.disabled ? "opacity-40 cursor-not-allowed" : "",
+                      highlighted && !selected ? "bg-slate-800/80 text-slate-100" : "",
+                      selected
+                        ? "bg-indigo-500/10 text-indigo-100 ring-1 ring-inset ring-indigo-500/25"
+                        : "text-slate-300",
+                    ].join(" ")}
+                  >
+                    {opt.dotClass ? (
+                      <span
+                        className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${opt.dotClass}`}
+                      />
+                    ) : null}
+                    <span className="truncate flex-1 tabular-nums">{opt.label}</span>
+                    {opt.hint !== undefined && opt.hint !== "" ? (
+                      <span
+                        className={[
+                          "text-[10px] px-1.5 py-0.5 rounded tabular-nums shrink-0",
+                          selected
+                            ? "bg-indigo-500/20 text-indigo-200"
+                            : "bg-slate-800 text-slate-500",
+                        ].join(" ")}
+                      >
+                        {opt.hint}
+                      </span>
+                    ) : null}
+                    <span
+                      className={`text-indigo-300 shrink-0 transition-opacity ${
+                        selected ? "opacity-100" : "opacity-0"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      <Check />
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   return (
     <div className={`relative ${className}`}>
@@ -307,118 +462,9 @@ export function Select<T extends string>({
         </span>
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            ref={panelRef}
-            role="listbox"
-            id={`${id}-listbox`}
-            tabIndex={-1}
-            onKeyDown={onPanelKey}
-            initial={{ opacity: 0, scale: 0.96, y: dropDir === "down" ? -4 : 4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: dropDir === "down" ? -4 : 4 }}
-            transition={{ type: "spring", stiffness: 520, damping: 38, mass: 0.6 }}
-            className={[
-              panelClasses,
-              "rounded-xl border border-slate-700/70 bg-slate-900/95 backdrop-blur",
-              "shadow-2xl shadow-black/50 ring-1 ring-black/5 overflow-hidden",
-            ].join(" ")}
-          >
-            {searchable && (
-              <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800/70">
-                <span className="text-slate-500"><SearchIcon /></span>
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={searchPlaceholder ?? "Buscar..."}
-                  className="flex-1 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none tabular-nums"
-                />
-                {query && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQuery("");
-                      searchInputRef.current?.focus();
-                    }}
-                    className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
-                    aria-label="Limpiar búsqueda"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            )}
-
-            <div
-              ref={listRef}
-              className="max-h-72 overflow-y-auto py-1 co-select-scroll"
-            >
-              {filteredOptions.length === 0 ? (
-                <div className="px-3 py-6 text-center text-xs text-slate-500">
-                  {emptyText ?? "Sin resultados"}
-                </div>
-              ) : (
-                filteredOptions.map((opt, idx) => {
-                  const selected = opt.value === value;
-                  const highlighted = idx === highlightIdx;
-                  return (
-                    <div
-                      key={opt.value}
-                      ref={(el) => {
-                        optionRefs.current[idx] = el;
-                      }}
-                      role="option"
-                      aria-selected={selected}
-                      aria-disabled={opt.disabled}
-                      onMouseEnter={() => setHighlightIdx(idx)}
-                      onClick={() => !opt.disabled && commit(opt.value)}
-                      className={[
-                        "mx-1 my-0.5 rounded-md px-2.5 py-1.5 flex items-center gap-2 text-sm cursor-pointer select-none",
-                        "transition-colors duration-100",
-                        opt.disabled ? "opacity-40 cursor-not-allowed" : "",
-                        highlighted && !selected ? "bg-slate-800/80 text-slate-100" : "",
-                        selected
-                          ? "bg-indigo-500/10 text-indigo-100 ring-1 ring-inset ring-indigo-500/25"
-                          : "text-slate-300",
-                      ].join(" ")}
-                    >
-                      {opt.dotClass ? (
-                        <span
-                          className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${opt.dotClass}`}
-                        />
-                      ) : null}
-                      <span className="truncate flex-1 tabular-nums">{opt.label}</span>
-                      {opt.hint !== undefined && opt.hint !== "" ? (
-                        <span
-                          className={[
-                            "text-[10px] px-1.5 py-0.5 rounded tabular-nums shrink-0",
-                            selected
-                              ? "bg-indigo-500/20 text-indigo-200"
-                              : "bg-slate-800 text-slate-500",
-                          ].join(" ")}
-                        >
-                          {opt.hint}
-                        </span>
-                      ) : null}
-                      <span
-                        className={`text-indigo-300 shrink-0 transition-opacity ${
-                          selected ? "opacity-100" : "opacity-0"
-                        }`}
-                        aria-hidden="true"
-                      >
-                        <Check />
-                      </span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {typeof document !== "undefined"
+        ? createPortal(panel, document.body)
+        : null}
     </div>
   );
 }
