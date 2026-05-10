@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { FilterPillGroup } from "../../components/FilterPillGroup";
 import { usePlaybooks } from "../../hooks/usePlaybooks";
 import { useI18n } from "../../context/I18nContext";
 import { PlaybookEvolutionCard } from "../../components/PlaybookEvolutionCard";
@@ -125,17 +126,13 @@ export default function ClosedLoop() {
               {t("cl.libEntries", { n: playbooks.length })} {SORTS.find((s) => s.value === sort)?.label.toLowerCase()}
             </p>
           </div>
-          <div className="flex gap-1 bg-slate-900/70 border border-slate-800 rounded-lg p-1">
-            {SORTS.map((s) => (
-              <button
-                key={s.value}
-                onClick={() => setSort(s.value)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${sort === s.value ? "bg-slate-700 text-white" : "text-slate-400 hover:text-slate-200"}`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
+          <FilterPillGroup
+            layoutId="co-pill-cl-sort"
+            value={sort}
+            onChange={setSort}
+            size="sm"
+            options={SORTS.map((s) => ({ value: s.value, label: s.label }))}
+          />
         </header>
 
         <div className="co-table-wrap">

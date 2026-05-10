@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { getIntervention } from "../api/agents";
 import { dispatchIntervention } from "../api/dispatch";
 import { ChannelIcon } from "./ChannelIcon";
@@ -43,6 +44,8 @@ function defaultRecipient(channel: InterventionChannel, champion: Props["champio
   if (channel === "voice_call") return champion.phone && champion.phone !== "—" ? champion.phone : "";
   return "";
 }
+
+const panelEase = [0.22, 1, 0.36, 1] as const;
 
 export function InterventionModal({ accountId, accountName, champion, onClose }: Props) {
   const { t } = useI18n();
@@ -93,7 +96,8 @@ export function InterventionModal({ accountId, accountName, champion, onClose }:
       setPhase("done");
       toast.push(t("toast.interventionOk"), "success");
     } catch {
-      setPhase("error");
+      setDeliveries(ALL_CHANNELS.map((channel) => ({ channel, status: "pending" })));
+      setPhase("ready");
       toast.push(t("toast.interventionError"), "error");
     }
   }
@@ -109,202 +113,254 @@ export function InterventionModal({ accountId, accountName, champion, onClose }:
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-slide-in"
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
       onClick={() => phase !== "dispatching" && onClose()}
     >
-      <div
-        className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
+      <motion.div
+        className="co-surface-tile-bg border border-slate-800/90 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85)] ring-1 ring-indigo-500/12"
+        initial={{ opacity: 0, scale: 0.94, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.38, ease: panelEase }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold mb-0.5">
-              {t("modal.title", { name: accountName })}
-            </p>
-            <h2 className="text-lg font-semibold text-white">
-              {phase === "done" ? t("modal.titleDone") : t("modal.titleReady")}
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            disabled={phase === "dispatching"}
-            className="text-slate-500 hover:text-white p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
+        <div className="pointer-events-none absolute inset-0 sc-card-noise opacity-[0.04] rounded-2xl" aria-hidden />
 
-        {/* Loading */}
-        {phase === "loading" && (
-          <div className="p-12 text-center text-slate-400">
-            <div className="w-8 h-8 mx-auto mb-3 border-2 border-slate-600 border-t-indigo-400 rounded-full animate-spin" />
-            <p className="text-sm">{t("modal.generating")}</p>
-          </div>
-        )}
-
-        {phase === "error" && (
-          <div className="p-12 text-center text-rose-400 text-sm">{t("modal.noRec")}</div>
-        )}
-
-        {(phase === "ready" || phase === "dispatching" || phase === "done") && rec && (
-          <>
-            {/* Agent reasoning */}
-            <div className="mx-6 mt-5 p-3.5 bg-indigo-500/5 border border-indigo-500/20 rounded-lg">
-              <div className="flex items-center gap-2 mb-1.5">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-300"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                <span className="text-[10px] uppercase tracking-widest font-semibold text-indigo-300">
-                  {t("modal.agentDecision")}
-                </span>
-                <span className="ml-auto text-[10px] text-slate-500">
-                  {t("modal.playbookStat", {
-                    pct: (rec.playbookSuccessRateAtDecision * 100).toFixed(0),
-                    conf: (rec.confidence * 100).toFixed(0),
-                  })}
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed">{rec.agentReasoning}</p>
+        <div className="relative z-[1]">
+          <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold mb-0.5">
+                {t("modal.title", { name: accountName })}
+              </p>
+              <h2 className="text-lg font-semibold text-white tracking-tight">
+                {phase === "done" ? t("modal.titleDone") : t("modal.titleReady")}
+              </h2>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={phase === "dispatching"}
+              className="text-slate-500 hover:text-white p-2 rounded-lg hover:bg-slate-800/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/45"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
 
-            {/* Channel selector */}
-            <div className="px-6 pt-5">
-              <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-2">
-                {t("modal.channel")}
-              </label>
-              <div className="grid grid-cols-4 gap-2">
-                {ALL_CHANNELS.map((ch) => {
-                  const isRec = recommendedSet.has(ch);
-                  return (
-                    <div
-                      key={ch}
-                      className={`flex flex-col items-center gap-1 p-3 rounded-lg border text-xs font-medium transition-colors ${isRec ? "bg-indigo-500/10 border-indigo-500/50 text-indigo-200" : "bg-slate-800/40 border-slate-800 text-slate-500"}`}
-                    >
-                      <ChannelIcon channel={ch} />
-                      <span>{t(`channel.${ch}` as any)}</span>
-                      {isRec && <span className="text-[9px] text-indigo-400 font-semibold uppercase tracking-wider">{t("modal.suggested")}</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Recipient + champion contacts */}
-            <div className="px-6 pt-4 space-y-3">
-              <div>
-                <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
-                  {t("modal.recipient")}
-                </label>
-                <input
-                  type="text"
-                  value={recipient}
-                  onChange={(e) => setRecipient(e.target.value)}
-                  disabled={phase !== "ready"}
-                  className="w-full bg-slate-800/40 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/60 disabled:opacity-60"
+          <AnimatePresence mode="wait">
+            {phase === "loading" && (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="p-14 text-center text-slate-400"
+              >
+                <motion.div
+                  className="w-9 h-9 mx-auto mb-4 border-2 border-slate-700 border-t-indigo-400 rounded-full"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 0.85, repeat: Infinity, ease: "linear" }}
                 />
-              </div>
-              <div>
-                <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
-                  {t("modal.contacts", { name: champion.name })}
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {([
-                    { icon: "✉", label: "Email",   value: champion.email,        channel: "email" as InterventionChannel },
-                    { icon: "💬", label: "Slack",  value: champion.slackContact, channel: "slack" as InterventionChannel },
-                    { icon: "📞", label: "Tel/WA", value: champion.phone,        channel: "voice_call" as InterventionChannel },
-                  ] as const).map(({ icon, label, value }) => (
-                    <button
-                      key={label}
-                      disabled={phase !== "ready" || !value || value === "—"}
-                      onClick={() => setRecipient(value ?? "")}
-                      title={value || "N/A"}
-                      className="text-left px-2 py-1.5 bg-slate-800/40 border border-slate-700 rounded-md hover:bg-slate-700/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <div className="text-[10px] text-slate-500">{icon} {label}</div>
-                      <div className="text-xs text-slate-200 truncate">{value && value !== "—" ? value : "—"}</div>
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[10px] text-slate-500 mt-1">{t("modal.clickToUse")}</p>
-              </div>
-            </div>
-
-            {/* Message */}
-            <div className="px-6 pt-4 pb-2">
-              <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
-                {t("modal.message")}
-              </label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                disabled={phase !== "ready"}
-                rows={5}
-                className="w-full bg-slate-800/40 border border-slate-700 rounded-md px-3 py-2.5 text-sm text-slate-100 leading-relaxed focus:outline-none focus:border-indigo-500/60 disabled:opacity-60 resize-none"
-              />
-              <p className="text-[10px] text-slate-500 mt-1">{t("modal.messageHint")}</p>
-            </div>
-
-            {/* Delivery status */}
-            {(phase === "dispatching" || phase === "done") && (
-              <div className="px-6 pt-2 pb-2">
-                <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-2">
-                  {t("modal.deliveryStatus")}
-                </label>
-                <div className="space-y-2">
-                  {deliveries.map((d) => (
-                    <div
-                      key={d.channel}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg border transition-colors ${d.status === "delivered" ? "bg-emerald-500/5 border-emerald-500/30" : "bg-slate-800/30 border-slate-800"}`}
-                    >
-                      <StatusDot status={d.status} />
-                      <span className="text-slate-300 shrink-0"><ChannelIcon channel={d.channel} /></span>
-                      <span className="text-sm font-medium text-slate-200 flex-1">{t(`channel.${d.channel}` as any)}</span>
-                      <span className={`text-xs font-medium ${d.status === "delivered" ? "text-emerald-300" : d.status === "failed" ? "text-rose-300" : d.status === "sent" ? "text-indigo-300" : "text-slate-500"}`}>
-                        {statusLabel(d.status)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                <p className="text-sm">{t("modal.generating")}</p>
+              </motion.div>
             )}
 
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-between gap-3 mt-4">
-              <button
-                onClick={onClose}
-                disabled={phase === "dispatching"}
-                className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
+            {phase === "error" && !rec && (
+              <motion.div
+                key="err-load"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="p-12 text-center text-rose-400 text-sm"
               >
-                {allDelivered ? t("modal.close") : t("modal.cancel")}
-              </button>
+                {t("modal.noRec")}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-              {phase === "ready" && (
+          {(phase === "ready" || phase === "dispatching" || phase === "done") && rec && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.32, ease: panelEase, delay: 0.04 }}
+            >
+              <div className="mx-6 mt-5 p-3.5 rounded-xl border border-indigo-500/22 bg-gradient-to-br from-indigo-500/[0.07] to-violet-600/[0.04] shadow-inner">
+                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-300 shrink-0"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                  <span className="text-[10px] uppercase tracking-widest font-semibold text-indigo-300">
+                    {t("modal.agentDecision")}
+                  </span>
+                  <span className="ml-auto text-[10px] text-slate-500">
+                    {t("modal.playbookStat", {
+                      pct: (rec.playbookSuccessRateAtDecision * 100).toFixed(0),
+                      conf: (rec.confidence * 100).toFixed(0),
+                    })}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">{rec.agentReasoning}</p>
+              </div>
+
+              <div className="px-6 pt-5">
+                <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-2">
+                  {t("modal.channel")}
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {ALL_CHANNELS.map((ch) => {
+                    const isRec = recommendedSet.has(ch);
+                    return (
+                      <motion.div
+                        key={ch}
+                        whileHover={{ y: -2 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                        className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-xs font-medium transition-colors ${isRec ? "bg-indigo-500/12 border-indigo-500/45 text-indigo-100 shadow-[0_0_20px_-8px_rgba(99,102,241,0.45)]" : "bg-slate-950/40 border-slate-800/90 text-slate-500"}`}
+                      >
+                        <ChannelIcon channel={ch} />
+                        <span>{t(`channel.${ch}` as string)}</span>
+                        {isRec && <span className="text-[9px] text-indigo-400 font-semibold uppercase tracking-wider">{t("modal.suggested")}</span>}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="px-6 pt-4 space-y-3">
+                <div>
+                  <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
+                    {t("modal.recipient")}
+                  </label>
+                  <input
+                    type="text"
+                    value={recipient}
+                    onChange={(e) => setRecipient(e.target.value)}
+                    disabled={phase !== "ready"}
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/55 focus:ring-1 focus:ring-indigo-500/25 disabled:opacity-60 transition-shadow"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
+                    {t("modal.contacts", { name: champion.name })}
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {([
+                      { icon: "✉", label: "Email",   value: champion.email,        channel: "email" as InterventionChannel },
+                      { icon: "💬", label: "Slack",  value: champion.slackContact, channel: "slack" as InterventionChannel },
+                      { icon: "📞", label: "Tel/WA", value: champion.phone,        channel: "voice_call" as InterventionChannel },
+                    ] as const).map(({ icon, label, value }) => (
+                      <button
+                        key={label}
+                        type="button"
+                        disabled={phase !== "ready" || !value || value === "—"}
+                        onClick={() => setRecipient(value ?? "")}
+                        title={value || "N/A"}
+                        className="text-left px-3 py-2 bg-slate-950/40 border border-slate-800 rounded-lg hover:bg-slate-800/70 hover:border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/35"
+                      >
+                        <div className="text-[10px] text-slate-500">{icon} {label}</div>
+                        <div className="text-xs text-slate-200 truncate">{value && value !== "—" ? value : "—"}</div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">{t("modal.clickToUse")}</p>
+                </div>
+              </div>
+
+              <div className="px-6 pt-4 pb-1">
+                <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
+                  {t("modal.message")}
+                </label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  disabled={phase !== "ready"}
+                  rows={5}
+                  className="w-full bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-slate-100 leading-relaxed focus:outline-none focus:border-indigo-500/55 focus:ring-1 focus:ring-indigo-500/25 disabled:opacity-60 resize-none"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">{t("modal.messageHint")}</p>
+              </div>
+
+              <AnimatePresence>
+                {(phase === "dispatching" || phase === "done") && (
+                  <motion.div
+                    key="delivery"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.26, ease: panelEase }}
+                    className="px-6 pt-2"
+                  >
+                    <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-2">
+                      {t("modal.deliveryStatus")}
+                    </label>
+                    <div className="space-y-2 pb-2">
+                      {deliveries.map((d, i) => (
+                        <motion.div
+                          key={d.channel}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.05, duration: 0.22, ease: panelEase }}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors ${d.status === "delivered" ? "bg-emerald-500/[0.06] border-emerald-500/28" : "bg-slate-950/35 border-slate-800/80"}`}
+                        >
+                          <StatusDot status={d.status} />
+                          <span className="text-slate-400 shrink-0"><ChannelIcon channel={d.channel} /></span>
+                          <span className="text-sm font-medium text-slate-200 flex-1">{t(`channel.${d.channel}` as string)}</span>
+                          <span className={`text-xs font-medium ${d.status === "delivered" ? "text-emerald-300" : d.status === "failed" ? "text-rose-300" : d.status === "sent" ? "text-indigo-300" : "text-slate-500"}`}>
+                            {statusLabel(d.status)}
+                          </span>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="px-6 py-4 border-t border-slate-800/80 flex items-center justify-between gap-3 mt-2 flex-wrap">
                 <button
-                  onClick={launch}
-                  className="flex items-center gap-2 px-5 py-2 bg-gradient-to-br from-rose-500 to-orange-500 text-white text-sm font-semibold rounded-md shadow-lg shadow-rose-500/20 hover:from-rose-400 hover:to-orange-400 transition-colors"
+                  type="button"
+                  onClick={onClose}
+                  disabled={phase === "dispatching"}
+                  className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white disabled:opacity-30 transition-colors rounded-lg hover:bg-slate-800/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-600/50"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                  {t("modal.launch")}
+                  {allDelivered ? t("modal.close") : t("modal.cancel")}
                 </button>
-              )}
 
-              {phase === "dispatching" && (
-                <span className="text-sm font-medium text-indigo-300 flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 border-2 border-indigo-400/40 border-t-indigo-300 rounded-full animate-spin" />
-                  {t("modal.launching", { n: ALL_CHANNELS.length })}
-                </span>
-              )}
+                {phase === "ready" && (
+                  <motion.button
+                    type="button"
+                    onClick={launch}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-semibold bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 shadow-lg shadow-indigo-900/40 hover:from-indigo-400 hover:via-indigo-500 hover:to-violet-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    {t("modal.launch")}
+                  </motion.button>
+                )}
 
-              {phase === "done" && (
-                <span className="text-sm font-semibold text-emerald-300 flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  {t("modal.done")}
-                </span>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+                {phase === "dispatching" && (
+                  <span className="text-sm font-medium text-indigo-300 flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 border-2 border-indigo-400/40 border-t-indigo-300 rounded-full animate-spin" />
+                    {t("modal.launching", { n: ALL_CHANNELS.length })}
+                  </span>
+                )}
+
+                {phase === "done" && (
+                  <motion.span
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-sm font-semibold text-emerald-300 flex items-center gap-2"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    {t("modal.done")}
+                  </motion.span>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

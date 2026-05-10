@@ -17,6 +17,13 @@ const TRANSLATIONS = {
   "inv.badge":               { es: "Agente activo",                         en: "Agent active" },
   "inv.title":               { es: "Intervenciones",                        en: "Interventions" },
   "inv.subtitle":            { es: "Historial de acciones lanzadas por el agente de intervención", en: "History of actions launched by the intervention agent" },
+  "inv.insightLine": {
+    es: "{pending} pendientes de aprobación · {rate}% éxito en resueltas · {success} exitosas en total",
+    en: "{pending} awaiting approval · {rate}% success on resolved · {success} total wins",
+  },
+  "inv.resetFilters":        { es: "Restablecer filtros",                  en: "Reset filters" },
+  "inv.emptyReset":          { es: "Ver todas las intervenciones",        en: "Show all interventions" },
+  "inv.emptyGoDashboard":    { es: "Ir al panel",                         en: "Go to dashboard" },
   "inv.statTotal":           { es: "Total",                                 en: "Total" },
   "inv.statTotalSub":        { es: "todas las intervenciones",              en: "all interventions" },
   "inv.statPending":         { es: "Pendientes aprobación",                 en: "Awaiting approval" },
@@ -86,7 +93,7 @@ const TRANSLATIONS = {
   "channel.voice_call": { es: "Llamada de voz",   en: "Voice Call" },
 
   // Dashboard page
-  "dash.title":       { es: "Health Dashboard",                           en: "Health Dashboard" },
+  "dash.title":       { es: "Panel de control",      en: "Health Dashboard" },
   "dash.subtitle":    { es: "Centro de comando de Customer Success · Sincronizado a las", en: "Customer Success command center · Synced at" },
   "dash.insightLine": {
     es: "{risk} cuentas con riesgo elevado · {arr} ARR en riesgo",

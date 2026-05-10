@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
 import Dashboard from "./pages/Dashboard";
 import AccountDetail from "./pages/AccountDetail";
 import ClosedLoop from "./pages/ClosedLoop";
@@ -9,6 +10,7 @@ import { ToastProvider } from "./components/Toast";
 import { DataProvider } from "./context/DataContext";
 import { I18nProvider } from "./context/I18nContext";
 import Navbar from "./components/Navbar";
+import SplashScreen from "./components/SplashScreen";
 
 function Layout({ children }: { children: ReactNode }) {
   return (
@@ -20,8 +22,14 @@ function Layout({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
   return (
-    <BrowserRouter>
+    <>
+      <AnimatePresence>
+        {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
+      </AnimatePresence>
+      <BrowserRouter>
       <I18nProvider>
         <DataProvider>
           <ToastProvider>
@@ -38,5 +46,6 @@ export default function App() {
         </DataProvider>
       </I18nProvider>
     </BrowserRouter>
+    </>
   );
 }

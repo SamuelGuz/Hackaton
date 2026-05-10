@@ -9,6 +9,7 @@ import { SkeletonRow, SkeletonCard } from "../../components/Skeleton";
 import { SurfaceCard } from "../../components/SurfaceCard";
 import type { SurfaceTone } from "../../components/SurfaceCard";
 import { Sparkline } from "../../components/Sparkline";
+import { FilterPillGroup } from "../../components/FilterPillGroup";
 import { humanizeI18n, formatArr, formatRenewal } from "../../utils/format";
 import type { AccountFilter } from "../../api/accounts";
 
@@ -131,25 +132,28 @@ export default function Dashboard() {
       {/* Filter + search */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex gap-1 bg-slate-900/70 border border-slate-800 rounded-lg p-1">
-            {FILTERS.map((f) => {
+          <FilterPillGroup
+            layoutId="co-pill-dash-accounts"
+            value={activeFilter}
+            onChange={setActiveFilter}
+            options={FILTERS.map((f) => {
               const count = f.value === "all" ? stats.total : f.value === "at_risk" ? stats.atRisk : stats.expansion;
               const active = activeFilter === f.value;
-              return (
-                <button
-                  key={f.value}
-                  type="button"
-                  onClick={() => setActiveFilter(f.value)}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors ${active ? "bg-slate-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"}`}
-                >
-                  {f.label}
-                  <span className={`text-[11px] px-1.5 py-0.5 rounded tabular-nums ${active ? "bg-slate-900 text-slate-300" : "bg-slate-800 text-slate-500"}`}>
+              return {
+                value: f.value,
+                label: f.label,
+                suffix: (
+                  <span
+                    className={`text-[11px] px-1.5 py-0.5 rounded tabular-nums transition-colors duration-200 ${
+                      active ? "bg-slate-900 text-slate-300" : "bg-slate-800 text-slate-500"
+                    }`}
+                  >
                     {count}
                   </span>
-                </button>
-              );
+                ),
+              };
             })}
-          </div>
+          />
           {filtersDirty && (
             <button
               type="button"
