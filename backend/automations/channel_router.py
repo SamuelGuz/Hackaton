@@ -510,8 +510,19 @@ def twilio_twiml(intervention_id: str):
 
 
 @router.websocket("/twilio/media-stream")
-async def twilio_media_stream(ws: WebSocket, intervention_id: str):
-    await twilio_bridge.bridge(ws, intervention_id)
+async def twilio_media_stream(ws: WebSocket):
+    """Twilio Media Stream entrypoint.
+
+    No requiere `intervention_id` en query string: el bridge lo lee del primer
+    mensaje `start` (customParameters via `<Parameter>` en el TwiML).
+    """
+    logger.info(
+        "[twilio-ws] incoming connection path=%s qs=%r headers=%s",
+        ws.scope.get("path"),
+        ws.scope.get("query_string"),
+        {k: v for k, v in ws.headers.items() if k.lower() not in ("authorization", "cookie")},
+    )
+    await twilio_bridge.bridge(ws)
 
 
 @router.post("/twilio/status")
