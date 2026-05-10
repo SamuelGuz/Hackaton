@@ -1,0 +1,7 @@
+{
+  "intervention_id": "slack-789-ghi",
+  "channel": "#csm-alerts",
+  "message": ":rotating_light: Cuenta en riesgo: *Acme Corp*\n\nChurn risk: 73%\nAcción sugerida: ...",
+  "csm_to_mention": "@carlos",
+  "callback_url": "https://tu-backend.com/api/v1/callback"
+}

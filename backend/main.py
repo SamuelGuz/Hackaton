@@ -2,11 +2,14 @@ from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from backend.automations.channel_router import router as dispatch_router
 from backend.routes.accounts import router as accounts_router
 
 app = FastAPI(title="Churn Oracle API")
 
 app.include_router(accounts_router, prefix="/api/v1")
+
+app.include_router(dispatch_router, prefix="/api/v1")
 
 
 @app.get("/health")
