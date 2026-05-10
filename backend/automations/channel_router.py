@@ -1,6 +1,8 @@
 """Channel router — picks email/slack/whatsapp/voice."""
 import logging
 import os
+
+logger = logging.getLogger(__name__)
 import re
 from datetime import datetime, timezone
 from typing import Optional
@@ -122,6 +124,7 @@ class ConversationPayload(BaseModel):
     channel: str
     content: str
     sender: str
+    direction: str = "inbound"
     received_at: Optional[str] = None
 
 
@@ -577,18 +580,19 @@ def receive_conversation(body: ConversationPayload):
             detail={"error": "invalid_payload", "message": "Se requiere account_id o intervention_id válido"},
         )
 
-    # Guardar conversación inbound
+    # Guardar conversación
     sb.table("conversations").insert({
         "account_id": account_id,
         "channel": body.channel,
-        "direction": "inbound",
+        "direction": body.direction,
         "participants": [body.sender],
         "content": body.content,
         "occurred_at": now,
+        "intervention_id": intervention_id,
     }).execute()
 
-    # Actualizar intervención: status responded + outcome inferido por LLM
-    if intervention_id:
+    # Solo inferir outcome y marcar responded cuando el cliente responde (inbound)
+    if intervention_id and body.direction == "inbound":
         update: dict = {"status": "responded", "responded_at": now}
         inferred_outcome: str | None = None
         if not existing_outcome:
@@ -675,20 +679,19 @@ def receive_inbound_message(body: InboundMessageRequest):
         "participants": [phone],
         "content": body.message,
         "occurred_at": now,
+        "intervention_id": intervention_id,
     }).execute()
 
     # Marcar intervención como responded
     _update_intervention(intervention_id, {"status": "responded", "responded_at": now})
 
-    # Construir historial para Claude
-    # Primer turno: el mensaje que envió el sistema (outbound)
+    # Construir historial para Claude filtrado por intervention_id
     history = [{"role": "assistant", "content": intervention["message_body"]}]
 
-    # Conversaciones previas guardadas (inbound + outbound), ordenadas
     conv_res = (
         sb.table("conversations")
         .select("direction,content,occurred_at")
-        .eq("account_id", account_id)
+        .eq("intervention_id", intervention_id)
         .order("occurred_at", desc=False)
         .execute()
     )
