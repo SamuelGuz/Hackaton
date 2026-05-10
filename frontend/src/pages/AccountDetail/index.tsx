@@ -63,12 +63,8 @@ export default function AccountDetail() {
   } = useHealthHistory(id, activeTab === "history");
   const [voiceSession, setVoiceSession] = useState<{
     interventionId: string;
-    signedUrl: string;
-    triggerReason?: string;
-    messageBody?: string;
-    championName?: string;
-    companyName?: string;
-    csmName?: string;
+    callSid?: string;
+    toPhone?: string;
   } | null>(null);
 
   // Una intervención está "activa" si todavía no terminó su ciclo (no resuelta, no rechazada).
@@ -247,12 +243,9 @@ export default function AccountDetail() {
           {voiceSession && (
             <VoiceCallPanel
               interventionId={voiceSession.interventionId}
-              signedUrl={voiceSession.signedUrl}
-              triggerReason={voiceSession.triggerReason ?? ""}
-              messageBody={voiceSession.messageBody ?? ""}
-              championName={voiceSession.championName ?? account.champion.name}
-              companyName={voiceSession.companyName ?? account.name}
-              csmName={voiceSession.csmName ?? account.csm.name}
+              callSid={voiceSession.callSid}
+              toPhone={voiceSession.toPhone}
+              championName={account.champion.name}
               onClose={() => setVoiceSession(null)}
             />
           )}

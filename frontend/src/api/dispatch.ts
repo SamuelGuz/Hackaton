@@ -21,7 +21,7 @@ const MOCK_TIMING: Record<InterventionChannel, number> = {
 
 /**
  * Despacha la intervención por uno o varios canales en una sola request.
- * `deliveries` y la sesión live (signedUrl) sólo cubren los canales seleccionados.
+ * `deliveries` y los metadatos de sesión de voz sólo cubren los canales seleccionados.
  */
 export async function dispatchInterventionMulti(
   payload: MultiDispatchPayload,
@@ -55,10 +55,12 @@ export async function dispatchInterventionMulti(
     const includesVoice = selectedChannels.includes("voice_call");
     return {
       deliveries,
-      sessionMode: includesVoice ? "convai" : undefined,
-      signedUrl: includesVoice
-        ? "wss://api.elevenlabs.io/v1/convai/conversation?agent_id=demo&conversation_signature=mock"
-        : undefined,
+      sessionMode: includesVoice ? "twilio_pstn" : undefined,
+      callSid: includesVoice ? "CA_mock_call_sid" : undefined,
+      toPhone:
+        includesVoice
+          ? payload.channels.find((c) => c.channel === "voice_call")?.recipient
+          : undefined,
     };
   }
 
@@ -81,10 +83,12 @@ export async function dispatchInterventionMulti(
       channel: InterventionChannel;
       status: "delivered" | "failed";
       error?: string;
-      signed_url?: string;
+      call_sid?: string;
+      to_phone?: string;
     }>;
-    session_mode?: "convai";
-    signed_url?: string;
+    session_mode?: "twilio_pstn";
+    call_sid?: string;
+    to_phone?: string;
     estimated_delivery_seconds?: number;
   }>("/dispatch-intervention/multi", {
     method: "POST",
@@ -109,7 +113,7 @@ export async function dispatchInterventionMulti(
     }),
   });
 
-  // apiFetch ya hizo camelCase: results[].channel/status/error/signedUrl, session_mode → sessionMode, etc.
+  // apiFetch ya hizo camelCase: session_mode->sessionMode, call_sid->callSid, etc.
   const camel = res as unknown as MultiDispatchResponse;
 
   const resultMap = new Map<InterventionChannel, ChannelDispatchResult>();
@@ -131,13 +135,15 @@ export async function dispatchInterventionMulti(
     throw new Error(firstErr || "dispatch_failed");
   }
 
-  // Si voice_call está y vino signedUrl en el resultado por canal, lo preferimos al top-level.
+  // Si voice_call está y vino callSid en el resultado por canal, lo preferimos al top-level.
   const voiceResult = resultMap.get("voice_call");
-  const signedUrl = voiceResult?.signedUrl ?? camel.signedUrl;
+  const callSid = voiceResult?.callSid ?? camel.callSid;
+  const toPhone = voiceResult?.toPhone ?? camel.toPhone;
 
   return {
     deliveries,
-    sessionMode: signedUrl ? "convai" : camel.sessionMode,
-    signedUrl,
+    sessionMode: callSid ? "twilio_pstn" : camel.sessionMode,
+    callSid,
+    toPhone,
   };
 }

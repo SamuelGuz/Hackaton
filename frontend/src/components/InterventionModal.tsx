@@ -52,8 +52,8 @@ interface Props {
   /** Llamado cuando la intervención se persiste con éxito o termina exitosamente, para que
    *  el padre refresque su lista (y el CTA pase a "Intervención en curso") sin recargar. */
   onLaunched?: () => void;
-  /** voice_call: el backend devolvió signed_url ConvAI; el padre abre el VoiceCallPanel. */
-  onVoiceSessionStart?: (payload: { interventionId: string; signedUrl: string }) => void;
+  /** voice_call: el backend devolvió callSid Twilio; el padre abre el VoiceCallPanel. */
+  onVoiceSessionStart?: (payload: { interventionId: string; callSid?: string; toPhone?: string }) => void;
 }
 
 function defaultRecipient(channel: InterventionChannel, champion: Props["champion"]): string {
@@ -193,11 +193,17 @@ export function InterventionModal({
       return;
     }
 
-    const channelsPayload: ChannelDispatchInput[] = channelsToSend.map((channel) => ({
-      channel,
-      recipient: recipients[channel],
-      messageSubject: rec.messageSubject ?? null,
-    }));
+    const channelsPayload: ChannelDispatchInput[] = channelsToSend.map((channel) => {
+      const recipient =
+        channel === "voice_call"
+          ? (champion.phone && champion.phone !== "—" ? champion.phone : recipients[channel])
+          : recipients[channel];
+      return {
+        channel,
+        recipient,
+        messageSubject: rec.messageSubject ?? null,
+      };
+    });
 
     setPhase("dispatching");
     setDeliveries(channelsToSend.map((channel) => ({ channel, status: "pending" })));
@@ -219,15 +225,12 @@ export function InterventionModal({
         },
         (next) => setDeliveries(next)
       );
-      // voice_call: si el backend devolvió signedUrl, abrimos el panel ConvAI.
-      if (
-        channelsToSend.includes("voice_call") &&
-        result.signedUrl &&
-        rec.interventionId
-      ) {
+      // voice_call: si el backend devolvió callSid, abrimos panel PSTN.
+      if (channelsToSend.includes("voice_call") && rec.interventionId) {
         onVoiceSessionStart?.({
           interventionId: rec.interventionId,
-          signedUrl: result.signedUrl,
+          callSid: result.callSid,
+          toPhone: result.toPhone,
         });
       }
       setPhase("done");
