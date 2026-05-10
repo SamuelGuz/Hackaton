@@ -187,7 +187,7 @@ def _fetch_accounts_rows(account_ids: list[str]) -> dict[str, dict[str, Any]]:
         return {}
     client = get_client()
     select = (
-        "id,name,industry,size,plan,arr_usd,champion_name,champion_email,champion_role,champion_phone,"
+        "id,account_number,name,industry,size,plan,arr_usd,champion_name,champion_email,champion_role,champion_phone,"
         "champion_changed_recently,geography,seats_purchased,seats_active,signup_date,"
         "contract_renewal_date,last_qbr_date,current_nps_score,current_nps_category,last_nps_at,"
         "csm_id,"
@@ -239,6 +239,7 @@ def list_accounts(
         accounts.append(
             AccountListItem(
                 id=str(row["id"]),
+                account_number=str(row.get("account_number") or ""),
                 name=str(row["name"]),
                 industry=str(row["industry"]),
                 size=str(row["size"]),
@@ -450,7 +451,7 @@ def get_account_timeline(account_id: str) -> TimelineResponse:
 def get_account(account_id: str) -> AccountDetailResponse:
     client = get_client()
     select = (
-        "id,name,industry,size,plan,arr_usd,geography,seats_purchased,seats_active,signup_date,"
+        "id,account_number,name,industry,size,plan,arr_usd,geography,seats_purchased,seats_active,signup_date,"
         "contract_renewal_date,champion_name,champion_email,champion_role,champion_phone,champion_changed_recently,"
         "last_qbr_date,current_nps_score,current_nps_category,last_nps_at,"
         "csm_team(id,name,email,slack_handle,slack_user_id,phone,role),"
@@ -522,6 +523,7 @@ def get_account(account_id: str) -> AccountDetailResponse:
 
     return AccountDetailResponse(
         id=str(row["id"]),
+        account_number=str(row.get("account_number") or ""),
         name=str(row["name"]),
         industry=str(row["industry"]),
         size=str(row["size"]),

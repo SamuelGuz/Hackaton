@@ -212,6 +212,7 @@ def build_account_seeds(
         now = datetime.now(timezone.utc)
         signup = now - timedelta(days=rng.randint(60, 720))
         renewal = signup + timedelta(days=rng.randint(300, 420))
+        account_number = f"ACC-{signup.year}-{i + 1:05d}"
 
         champion_changed = False
         if bucket == "at_risk_obvious" and rng.random() < 0.45:
@@ -227,6 +228,7 @@ def build_account_seeds(
 
         row: dict[str, Any] = {
             "id": aid,
+            "account_number": account_number,
             "name": fake.company(),
             "industry": industry,
             "size": size,
