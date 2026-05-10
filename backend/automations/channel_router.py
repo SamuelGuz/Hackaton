@@ -7,13 +7,12 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import PlainTextResponse
+from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, Form
+from fastapi.responses import PlainTextResponse, Response
 from pydantic import BaseModel
 from supabase import create_client, Client
 
-from .elevenlabs_client import get_convai_signed_url
-from . import make_webhooks
+from . import make_webhooks, twilio_bridge
 
 router = APIRouter(prefix="/dispatch-intervention", tags=["dispatch"])
 
@@ -209,7 +208,7 @@ def _apply_playbook_outcome(sb: Client, playbook_id: str, outcome: str) -> None:
 @router.post("", status_code=202)
 def dispatch_intervention(body: DispatchRequest):
     audio_url: str | None = None
-    signed_url: str | None = None
+    twilio_call_sid: str | None = None
     fallback_used = False
 
     # Validar que la intervención existe y está aprobada antes de despachar.
@@ -282,8 +281,17 @@ def dispatch_intervention(body: DispatchRequest):
             )
 
         elif body.channel == "voice_call":
-            agent_id = os.environ.get("ELEVENLABS_AGENT_ID")
-            signed_url = get_convai_signed_url(agent_id)
+            if not body.recipient or not re.match(r"^\+\d{8,15}$", body.recipient.strip()):
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "invalid_payload",
+                        "message": "voice_call requires recipient in E.164 format (+...)",
+                    },
+                )
+            twilio_call_sid = twilio_bridge.start_twilio_call(
+                body.intervention_id, body.recipient.strip()
+            )
 
         else:
             raise HTTPException(
@@ -303,6 +311,8 @@ def dispatch_intervention(body: DispatchRequest):
     update: dict = {"status": "sent", "sent_at": _now()}
     if audio_url:
         update["voice_audio_url"] = audio_url
+    if twilio_call_sid:
+        update["external_id"] = twilio_call_sid
 
     _update_intervention(body.intervention_id, update)
 
@@ -315,9 +325,10 @@ def dispatch_intervention(body: DispatchRequest):
     if fallback_used:
         response["fallback_used"] = True
         response["fallback_audio_url"] = audio_url
-    if signed_url:
-        response["session_mode"] = "convai"
-        response["signed_url"] = signed_url
+    if twilio_call_sid:
+        response["session_mode"] = "twilio_pstn"
+        response["call_sid"] = twilio_call_sid
+        response["to_phone"] = body.recipient
 
     return response
 
@@ -327,9 +338,7 @@ def dispatch_intervention_multi(body: MultiDispatchRequest):
     """Despacha una intervención por múltiples canales en una sola request.
 
     Validación de status una sola vez. Cada canal corre independientemente.
-    Para `voice_call` no usamos Make/Twilio: pedimos un `signed_url` a ElevenLabs
-    ConvAI (una sola vez aunque se pida varias veces) y devolvemos `session_mode`
-    + `signed_url` en el top-level del response (igual que el endpoint legacy).
+    Para `voice_call` se dispara una llamada PSTN real por Twilio hacia `recipient`.
     """
     if not body.channels:
         raise HTTPException(
@@ -360,20 +369,6 @@ def dispatch_intervention_multi(body: MultiDispatchRequest):
                 "message": f"intervention status is '{current_status}', must be 'pending', 'approved' or 'pending_approval' to dispatch",
             },
         )
-
-    # ConvAI: un único signed_url aunque vengan varios canales.
-    signed_url: str | None = None
-    if any(c.channel == "voice_call" for c in body.channels):
-        try:
-            signed_url = get_convai_signed_url(os.environ.get("ELEVENLABS_AGENT_ID"))
-        except Exception as exc:  # noqa: BLE001
-            # Si ConvAI falla, marcamos cada voice_call como failed pero seguimos con los otros.
-            signed_url = None
-            _convai_error = str(exc)
-        else:
-            _convai_error = ""
-    else:
-        _convai_error = ""
 
     results: list[dict] = []
     any_ok = False
@@ -418,18 +413,23 @@ def dispatch_intervention_multi(body: MultiDispatchRequest):
                     account_name=body.account_name or "",
                 )
             elif ch.channel == "voice_call":
-                if not signed_url:
-                    results.append({
-                        "channel": "voice_call",
-                        "status": "failed",
-                        "error": _convai_error or "convai_signed_url_missing",
-                    })
+                if not ch.recipient or not re.match(r"^\+\d{8,15}$", ch.recipient.strip()):
+                    results.append(
+                        {
+                            "channel": "voice_call",
+                            "status": "failed",
+                            "error": "voice_call requires recipient in E.164 format (+...)",
+                        }
+                    )
                     continue
-                # No llamamos Make: el frontend abre un panel WS con el signed_url.
+                call_sid = twilio_bridge.start_twilio_call(
+                    body.intervention_id, ch.recipient.strip()
+                )
                 results.append({
                     "channel": "voice_call",
                     "status": "delivered",
-                    "signed_url": signed_url,
+                    "call_sid": call_sid,
+                    "to_phone": ch.recipient.strip(),
                 })
                 any_ok = True
                 continue
@@ -458,9 +458,6 @@ def dispatch_intervention_multi(body: MultiDispatchRequest):
         "results": results,
         "estimated_delivery_seconds": 15,
     }
-    if signed_url:
-        response["session_mode"] = "convai"
-        response["signed_url"] = signed_url
     return response
 
 
@@ -504,6 +501,65 @@ def dispatch_callback(body: CallbackPayload):
     except Exception:
         pass  # best-effort; returning 500 causes Make to retry indefinitely
     return {"received": True}
+
+
+@router.get("/twilio/twiml")
+def twilio_twiml(intervention_id: str):
+    xml = twilio_bridge.build_twiml(intervention_id)
+    return Response(content=xml, media_type="application/xml")
+
+
+@router.websocket("/twilio/media-stream")
+async def twilio_media_stream(ws: WebSocket, intervention_id: str):
+    await twilio_bridge.bridge(ws, intervention_id)
+
+
+@router.post("/twilio/status")
+def twilio_status_callback(
+    CallSid: str = Form(""),
+    CallStatus: str = Form(""),
+    intervention_id: str = Form(""),
+):
+    call_status = (CallStatus or "").strip().lower()
+    update: dict = {"external_id": CallSid}
+    if call_status in ("in-progress", "answered"):
+        update["status"] = "delivered"
+        update["delivered_at"] = _now()
+    elif call_status in ("failed", "busy", "no-answer", "canceled"):
+        update["status"] = "failed"
+        update["outcome_notes"] = f"twilio_call_status:{call_status}"
+
+    if intervention_id:
+        _update_intervention(intervention_id, update)
+        return {"received": True}
+
+    if CallSid:
+        _sb().table("interventions").update(update).eq("external_id", CallSid).execute()
+    return {"received": True}
+
+
+class HangupPayload(BaseModel):
+    intervention_id: str
+
+
+@router.post("/twilio/hangup")
+def twilio_hangup(body: HangupPayload):
+    row = (
+        _sb()
+        .table("interventions")
+        .select("external_id")
+        .eq("id", body.intervention_id)
+        .limit(1)
+        .execute()
+    )
+    rows = getattr(row, "data", None) or []
+    if not rows or not rows[0].get("external_id"):
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "call_not_found", "message": "No Twilio call_sid found"},
+        )
+    twilio_bridge.end_twilio_call(str(rows[0]["external_id"]))
+    return {"ok": True, "intervention_id": body.intervention_id}
 
 
 @router.post("/conversation")

@@ -1,182 +1,103 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Conversation } from "@elevenlabs/client";
+import { useEffect, useMemo, useState } from "react";
+import { apiFetch } from "../api/client";
 
 type VoiceSessionState =
-  | "awaiting_token"
-  | "requesting_mic"
-  | "connecting"
-  | "live"
+  | "dialing"
+  | "in_progress"
   | "ended"
   | "error";
 
 interface Props {
-  signedUrl: string;
+  callSid?: string;
+  toPhone?: string;
   interventionId: string;
-  triggerReason: string;
-  messageBody: string;
   championName: string;
-  companyName: string;
-  csmName?: string;
   onClose: () => void;
 }
 
-type ConversationLike = {
-  endSession: () => Promise<void>;
-  setMicMuted: (muted: boolean) => void;
-  getId?: () => string;
-};
-
 export function VoiceCallPanel({
-  signedUrl,
+  callSid,
+  toPhone,
   interventionId,
-  triggerReason,
-  messageBody,
   championName,
-  companyName,
-  csmName = "CSM",
   onClose,
 }: Props) {
-  const conversationRef = useRef<ConversationLike | null>(null);
-  const [status, setStatus] = useState<VoiceSessionState>("awaiting_token");
-  const [mode, setMode] = useState("listening");
-  const [isMuted, setIsMuted] = useState(false);
-  const [conversationId, setConversationId] = useState<string>(interventionId);
-  const [lastEvent, setLastEvent] = useState("Esperando inicio de sesion...");
+  const [status, setStatus] = useState<VoiceSessionState>("dialing");
+  const [lastEvent, setLastEvent] = useState("Marcando llamada...");
+  const [isHangingUp, setIsHangingUp] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    const startTimer = window.setTimeout(() => {
-      startConversation();
-    }, 750);
-
-    async function startConversation() {
-      if (!signedUrl) {
-        setStatus("error");
-        setLastEvent("No se recibio URL firmada para la sesion.");
-        return;
-      }
-
+    const pollStatus = async () => {
       try {
-        setStatus("requesting_mic");
-        setLastEvent("Solicitando permiso de microfono...");
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch {
-        setStatus("error");
-        setLastEvent("Permiso de microfono denegado.");
-        return;
-      }
-
-      try {
-        setStatus("connecting");
-        setLastEvent("Conectando llamada con ElevenLabs...");
-        const sessionOptions: any = {
-          signedUrl,
-          connectionType: "websocket",
-          dynamicVariables: {
-            trigger_reason_label: triggerReason || "churn_risk_high",
-            top_signals_text: "Caida de logins y tickets sin resolver",
-            predicted_churn_reason: "adoption_drop_unresolved_tickets",
-            message_body: messageBody || "",
-            nombre_persona: championName || "cliente",
-            empresa: companyName || "empresa",
-            csm_name: csmName,
-            champion_name: championName || "cliente",
-          },
-          onConnect: () => {
-            setStatus("live");
-            setLastEvent("Llamada activa. Habla normalmente.");
-          },
-          onDisconnect: () => {
-            setStatus((prev) => (prev === "error" ? "error" : "ended"));
-            setLastEvent("Llamada finalizada.");
-          },
-          onModeChange: (modeChange: unknown) => {
-            if (typeof modeChange === "string") {
-              setMode(modeChange);
-              return;
-            }
-            if (
-              modeChange &&
-              typeof modeChange === "object" &&
-              "mode" in modeChange &&
-              typeof (modeChange as { mode?: unknown }).mode === "string"
-            ) {
-              setMode((modeChange as { mode: string }).mode);
-            }
-          },
-          onError: (error: unknown) => {
-            setStatus("error");
-            const msg = error instanceof Error ? error.message : "Error de conexion";
-            setLastEvent(`Error: ${msg}`);
-          },
-          onMessage: () => {
-            setStatus("live");
-          },
-        };
-
-        const conversation = (await Conversation.startSession(
-          sessionOptions
-        )) as ConversationLike;
-
-        if (cancelled) {
-          await conversation.endSession();
+        const res = await apiFetch<{ status: string }>(
+          `/dispatch-intervention/status/${interventionId}`
+        );
+        if (cancelled) return;
+        const current = res.status;
+        if (current === "failed") {
+          setStatus("error");
+          setLastEvent("La llamada fallo o no fue contestada.");
           return;
         }
-
-        conversationRef.current = conversation;
-        if (typeof conversation.getId === "function") {
-          const id = conversation.getId();
-          if (id) setConversationId(id);
+        if (current === "delivered") {
+          setStatus("in_progress");
+          setLastEvent("Llamada en curso.");
+          return;
         }
+        if (current === "responded") {
+          setStatus("ended");
+          setLastEvent("Llamada finalizada.");
+          return;
+        }
+        if (current === "sent" || current === "pending") {
+          setStatus("dialing");
+          setLastEvent("Marcando llamada...");
+          return;
+        }
+        setStatus("ended");
+        setLastEvent(`Estado final: ${current}`);
       } catch (error) {
+        if (cancelled) return;
+        const msg = error instanceof Error ? error.message : "Error de polling";
         setStatus("error");
-        const msg =
-          error instanceof Error ? error.message : "No fue posible iniciar la conversacion";
-        setLastEvent(msg);
+        setLastEvent(`Error consultando estado: ${msg}`);
       }
-    }
+    };
+
+    pollStatus();
+    const timer = window.setInterval(pollStatus, 3000);
 
     return () => {
       cancelled = true;
-      window.clearTimeout(startTimer);
-      const c = conversationRef.current;
-      conversationRef.current = null;
-      if (c) {
-        c.endSession().catch(() => {
-          // ignore cleanup errors
-        });
-      }
-    };
-  }, [signedUrl]);
+      window.clearInterval(timer);
+    }
+  }, [interventionId]);
 
   const statusLabel = useMemo(() => {
-    if (status === "awaiting_token") return "Esperando token";
-    if (status === "requesting_mic") return "Pidiendo microfono";
-    if (status === "connecting") return "Conectando";
-    if (status === "live") return mode === "speaking" ? "Agente hablando" : "Escuchando";
+    if (status === "dialing") return "Marcando";
+    if (status === "in_progress") return "En curso";
     if (status === "ended") return "Finalizada";
     return "Error";
-  }, [mode, status]);
+  }, [status]);
 
-  async function endCall() {
-    const c = conversationRef.current;
-    conversationRef.current = null;
-    if (c) {
-      await c.endSession().catch(() => {
-        // ignore
+  async function hangupCall() {
+    if (!callSid) return;
+    try {
+      setIsHangingUp(true);
+      await apiFetch("/dispatch-intervention/twilio/hangup", {
+        method: "POST",
+        body: JSON.stringify({ intervention_id: interventionId }),
       });
+      setStatus("ended");
+      setLastEvent("Llamada colgada por el CSM.");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Error de hangup";
+      setStatus("error");
+      setLastEvent(`No se pudo colgar: ${msg}`);
+    } finally {
+      setIsHangingUp(false);
     }
-    setStatus("ended");
-    setLastEvent("Llamada finalizada por el usuario.");
-    onClose();
-  }
-
-  function toggleMute() {
-    const c = conversationRef.current;
-    if (!c) return;
-    const next = !isMuted;
-    c.setMicMuted(next);
-    setIsMuted(next);
   }
 
   return (
@@ -184,9 +105,14 @@ export function VoiceCallPanel({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-indigo-300 font-semibold">
-            Llamada ConvAI
+            Llamada PSTN
           </p>
-          <p className="text-xs text-slate-400 mt-1 break-all">Conversation: {conversationId}</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {championName} {toPhone ? `(${toPhone})` : ""}
+          </p>
+          {callSid ? (
+            <p className="text-[11px] text-slate-500 mt-1 break-all">Call SID: {callSid}</p>
+          ) : null}
         </div>
         <span className="text-xs px-2 py-1 rounded border border-slate-700 text-slate-200">
           {statusLabel}
@@ -198,18 +124,18 @@ export function VoiceCallPanel({
       <div className="mt-4 flex justify-end gap-2">
         <button
           type="button"
-          onClick={toggleMute}
-          disabled={status !== "live"}
-          className="px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-200 hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          onClick={onClose}
+          className="px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-200 hover:bg-slate-800 transition-colors"
         >
-          {isMuted ? "Activar microfono" : "Silenciar microfono"}
+          Cerrar
         </button>
         <button
           type="button"
-          onClick={endCall}
-          className="px-3 py-1.5 text-xs rounded-lg border border-rose-500/50 text-rose-200 hover:bg-rose-500/15 transition-colors"
+          onClick={hangupCall}
+          disabled={status !== "in_progress" || isHangingUp || !callSid}
+          className="px-3 py-1.5 text-xs rounded-lg border border-slate-700 text-slate-200 hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Colgar
+          {isHangingUp ? "Colgando..." : "Colgar"}
         </button>
       </div>
     </section>
