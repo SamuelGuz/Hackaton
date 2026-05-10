@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
+from backend.agents.learning_loop import regenerate_playbook_if_failing
 from backend.routes.schemas_interventions import (
     InterventionListItem,
     InterventionsListResponse,
     OutcomeRequest,
     OutcomeResponse,
     PlaybookUpdateInfo,
+    RegeneratedPlaybookInfo,
 )
 from backend.shared.supabase_client import get_client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/interventions", tags=["interventions"])
 
@@ -136,8 +141,31 @@ def record_outcome(intervention_id: str, payload: OutcomeRequest) -> OutcomeResp
                 deprecated=deprecated,
             )
 
+    regen_summary: RegeneratedPlaybookInfo | None = None
+    if playbook_id and playbook_update is not None:
+        try:
+            result = regenerate_playbook_if_failing(playbook_id)
+            if result:
+                regen_summary = RegeneratedPlaybookInfo(
+                    old_playbook_id=result["old_playbook_id"],
+                    new_playbook_id=result["new_playbook_id"],
+                    old_version=result["old_version"],
+                    new_version=result["new_version"],
+                    old_success_rate=result["old_success_rate"],
+                    old_times_used=result["old_times_used"],
+                    channel_change=result["channel_change"],
+                    old_channel=result.get("old_channel"),
+                    new_channel=result["new_channel"],
+                    rationale=result["rationale"],
+                )
+        except Exception:
+            logger.exception(
+                "regen failed for %s — outcome write succeeded", playbook_id
+            )
+
     return OutcomeResponse(
         intervention_id=intervention_id,
         outcome_recorded=True,
         playbook_updated=playbook_update,
+        regenerated_playbook=regen_summary,
     )

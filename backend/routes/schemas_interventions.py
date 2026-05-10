@@ -71,9 +71,25 @@ class PlaybookUpdateInfo(BaseModel):
     deprecated: bool
 
 
+class RegeneratedPlaybookInfo(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    old_playbook_id: str
+    new_playbook_id: str
+    old_version: int
+    new_version: int
+    old_success_rate: float
+    old_times_used: int
+    channel_change: bool
+    old_channel: str | None = None
+    new_channel: str
+    rationale: str
+
+
 class OutcomeResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     intervention_id: str
     outcome_recorded: bool
     playbook_updated: PlaybookUpdateInfo | None = None
+    regenerated_playbook: RegeneratedPlaybookInfo | None = None
