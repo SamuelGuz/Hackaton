@@ -91,6 +91,7 @@ def import_accounts(request: ImportRequest) -> ImportResponse:
             "champion_name": row.champion_name,
             "champion_email": email,
             "champion_role": row.champion_role,
+            "champion_phone": row.champion_phone.strip() if row.champion_phone else None,
             "csm_id": csm_id,
         }
 

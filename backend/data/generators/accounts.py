@@ -133,6 +133,14 @@ def _seats_for_bucket(
     return purchased, active
 
 
+def _champion_phone_e164(geography: str, rng: random.Random) -> str:
+    """Synthetic E.164 mobile loosely aligned with geography (demo data)."""
+    if geography == "us":
+        return "+1" + str(rng.randint(2_000_000_000, 9_999_999_999))
+    prefix = {"latam": "+52", "eu": "+34", "apac": "+61"}.get(geography, "+52")
+    return prefix + str(rng.randint(1_000_000_000, 9_999_999_999))
+
+
 def _assign_csm_id(
     *,
     size: Size,
@@ -232,6 +240,7 @@ def build_account_seeds(
             "champion_name": fake.name(),
             "champion_email": fake.company_email(),
             "champion_role": rng.choice(["CFO", "VP Operations", "Head of IT", "Director Comercial", "COO"]),
+            "champion_phone": _champion_phone_e164(geography, rng),
             "champion_changed_recently": champion_changed,
             "csm_id": csm_id,
             "last_qbr_date": last_qbr.isoformat() if last_qbr else None,
