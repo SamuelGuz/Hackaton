@@ -1,4 +1,5 @@
 import type { AccountSummary, HealthStatus } from "../types";
+import type { CellValue } from "./excelParser";
 
 export type FieldKey =
   | "ignore"
@@ -32,6 +33,15 @@ export interface FieldDef {
   aliases: string[];
 }
 
+/** Enums acordados con el backend (ver docs/api-import-endpoints.md). */
+export const ENUM_VALUES: Partial<Record<FieldKey, readonly string[]>> = {
+  industry: ["fintech", "healthtech", "ecommerce", "saas", "edtech", "logistics", "professional_services", "media", "travel", "other"],
+  size: ["startup", "smb", "mid_market", "enterprise"],
+  geography: ["latam", "us", "eu", "apac"],
+  plan: ["starter", "growth", "business", "enterprise"],
+  healthStatus: ["critical", "at_risk", "stable", "healthy", "expanding"],
+};
+
 export const TARGET_FIELDS: FieldDef[] = [
   { key: "accountNumber",        label: "Nº cuenta",        required: false, hint: "Identificador único del cliente (ACC-2024-XXXX)", aliases: ["account_number", "num_cuenta", "numero_cuenta", "account_no", "account_id", "customer_id", "client_id", "id_cuenta", "numero_de_cuenta"] },
   { key: "name",                 label: "Empresa",          required: true,  hint: "Nombre de la cuenta",                  aliases: ["name", "company", "account", "empresa", "cliente", "customer", "company_name", "account_name"] },
@@ -61,7 +71,7 @@ function normalize(s: string): string {
   return s
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // strip combining diacriticals
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
 }
 
@@ -96,42 +106,119 @@ export function suggestMapping(headers: string[]): Record<string, FieldKey> {
   return mapping;
 }
 
-/** Coerce un valor crudo del Excel al tipo correcto del campo. */
-function coerce(value: string | number, field: FieldKey): unknown {
-  const str = String(value).trim();
-  if (str === "") return undefined;
+/** Excel serial date to JS Date (1900 epoch). Returns null if out of range. */
+function excelSerialToDate(serial: number): Date | null {
+  if (!Number.isFinite(serial) || serial <= 0 || serial > 100000) return null;
+  // Excel epoch starts on 1899-12-30 (with the 1900 leap-year bug accounted for).
+  const utcDays = Math.floor(serial - 25569);
+  const utcMs = utcDays * 86400 * 1000;
+  const d = new Date(utcMs);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function parseDate(raw: CellValue): Date | null {
+  if (raw instanceof Date) return isNaN(raw.getTime()) ? null : raw;
+  if (typeof raw === "number") return excelSerialToDate(raw);
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    if (!s) return null;
+    // Try ISO and common locales first.
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d;
+    // Try DD/MM/YYYY or DD-MM-YYYY.
+    const m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+    if (m) {
+      const [, dd, mm, yy] = m;
+      const year = yy.length === 2 ? 2000 + Number(yy) : Number(yy);
+      const d2 = new Date(Date.UTC(year, Number(mm) - 1, Number(dd)));
+      if (!isNaN(d2.getTime())) return d2;
+    }
+    // Last resort: maybe the string holds an Excel serial (e.g. "46122").
+    if (/^\d+(\.\d+)?$/.test(s)) {
+      const d3 = excelSerialToDate(Number(s));
+      if (d3) return d3;
+    }
+    return null;
+  }
+  return null;
+}
+
+/** Coerced value or { error } describing why coercion failed. */
+type CoerceResult = { value: unknown } | { error: string };
+
+function coerce(raw: CellValue, field: FieldKey): CoerceResult {
+  const isEmpty =
+    raw === undefined ||
+    raw === null ||
+    (typeof raw === "string" && raw.trim() === "");
+  if (isEmpty) return { value: undefined };
 
   switch (field) {
-    case "arrUsd":
+    case "arrUsd": {
+      const cleaned = String(raw).trim().replace(/[$,\s]/g, "").replace(/usd$/i, "");
+      const n = Number(cleaned);
+      if (!Number.isFinite(n)) return { error: `valor "${raw}" no es un número` };
+      if (n < 0) return { error: "ARR no puede ser negativo" };
+      return { value: n };
+    }
     case "churnRiskScore":
     case "expansionScore": {
-      const cleaned = str.replace(/[$,\s]/g, "").replace(/usd$/i, "");
+      const cleaned = String(raw).trim().replace(/[%,\s]/g, "");
       const n = Number(cleaned);
-      return Number.isFinite(n) ? n : undefined;
+      if (!Number.isFinite(n)) return { error: `valor "${raw}" no es un número` };
+      if (n < 0 || n > 100) return { error: `debe estar entre 0 y 100 (recibido: ${n})` };
+      return { value: Math.round(n) };
     }
     case "seatsPurchased":
     case "seatsActive": {
-      const n = Number(str.replace(/[,\s]/g, ""));
-      return Number.isFinite(n) ? Math.trunc(n) : undefined;
+      const cleaned = String(raw).trim().replace(/[,\s]/g, "");
+      const n = Number(cleaned);
+      if (!Number.isFinite(n)) return { error: `valor "${raw}" no es un número` };
+      if (n < 0) return { error: "no puede ser negativo" };
+      return { value: Math.trunc(n) };
     }
     case "contractRenewalDate":
     case "signupDate": {
-      // intenta parsear formatos comunes; si falla devuelve string
-      const d = new Date(str);
-      if (!isNaN(d.getTime())) return d.toISOString();
-      return str;
+      const d = parseDate(raw);
+      if (!d) {
+        return {
+          error: `fecha inválida "${raw}". Usa formato YYYY-MM-DD o una celda con formato fecha en Excel`,
+        };
+      }
+      return { value: d.toISOString() };
     }
     case "industry":
     case "size":
     case "geography":
     case "plan":
-      return str.toLowerCase().replace(/\s+/g, "_");
-    case "healthStatus":
-      return str.toLowerCase().replace(/\s+/g, "_") as HealthStatus;
+    case "healthStatus": {
+      const norm = String(raw).trim().toLowerCase().replace(/\s+/g, "_");
+      if (!norm) return { value: undefined };
+      const allowed = ENUM_VALUES[field];
+      if (allowed && !allowed.includes(norm)) {
+        return {
+          error: `valor "${raw}" no permitido. Valores válidos: ${allowed.join(", ")}`,
+        };
+      }
+      return { value: norm };
+    }
+    case "championEmail": {
+      const s = String(raw).trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) {
+        return { error: `email inválido "${raw}"` };
+      }
+      return { value: s };
+    }
     case "accountNumber":
-      return str;
+    case "name":
+    case "championName":
+    case "championRole":
+    case "championPhone":
+    case "slackContact":
+    case "csmAssigned":
+      return { value: String(raw).trim() };
     default:
-      return str;
+      return { value: String(raw).trim() };
   }
 }
 
@@ -145,28 +232,49 @@ function deriveHealthStatus(churnRisk: number, expansion: number): HealthStatus 
   return "healthy";
 }
 
+/** Detailed cell-level validation problem. */
+export interface CellIssue {
+  rowIndex: number;
+  rowNumber: number;
+  field: FieldKey;
+  fieldLabel: string;
+  rawValue: string;
+  message: string;
+  level: "error" | "warning";
+}
+
 export interface CommitResult {
   accounts: AccountSummary[];
-  errors: { row: number; message: string }[];
+  /** Indices (0-based) of rows successfully built. */
+  validRowIndexes: number[];
+  /** Cell-level issues — at least one error makes that row excluded from `accounts`. */
+  issues: CellIssue[];
+  /** Mapping-level errors (e.g. required field not mapped). */
+  mappingErrors: string[];
 }
 
 export function buildAccounts(
-  rows: Record<string, string | number>[],
-  mapping: Record<string, FieldKey>
+  rows: Record<string, CellValue>[],
+  mapping: Record<string, FieldKey>,
+  knownCsmNames: string[] = []
 ): CommitResult {
-  const errors: { row: number; message: string }[] = [];
+  const issues: CellIssue[] = [];
+  const mappingErrors: string[] = [];
   const accounts: AccountSummary[] = [];
+  const validRowIndexes: number[] = [];
 
-  // Validar que los campos required están mapeados
   const mappedFields = new Set(Object.values(mapping));
   for (const def of TARGET_FIELDS) {
     if (def.required && !mappedFields.has(def.key)) {
-      errors.push({ row: 0, message: `Falta mapear el campo requerido "${def.label}".` });
+      mappingErrors.push(`Falta mapear el campo requerido "${def.label}".`);
     }
   }
-  if (errors.length > 0) return { accounts, errors };
+  if (mappingErrors.length > 0) {
+    return { accounts, validRowIndexes, issues, mappingErrors };
+  }
 
-  // Tipo intermedio que incluye todos los FieldKey posibles
+  const csmLookup = new Set(knownCsmNames.map((n) => n.trim().toLowerCase()));
+
   type RawAcc = Omit<Partial<AccountSummary>, "csm"> & {
     csmAssigned?: string;
     championEmail?: string;
@@ -178,18 +286,97 @@ export function buildAccounts(
 
   rows.forEach((row, idx) => {
     const acc: RawAcc = {};
+    let rowHasError = false;
+
     for (const [header, field] of Object.entries(mapping)) {
       if (field === "ignore") continue;
       const raw = row[header];
-      if (raw === undefined || raw === "") continue;
-      const coerced = coerce(raw, field);
-      if (coerced === undefined) continue;
+      const isEmpty =
+        raw === undefined ||
+        raw === null ||
+        (typeof raw === "string" && raw.trim() === "");
+      const def = FIELD_BY_KEY.get(field);
+
+      if (isEmpty) {
+        if (def?.required) {
+          issues.push({
+            rowIndex: idx,
+            rowNumber: idx + 2,
+            field,
+            fieldLabel: def.label,
+            rawValue: "",
+            message: "campo requerido vacío",
+            level: "error",
+          });
+          rowHasError = true;
+        }
+        continue;
+      }
+
+      const result = coerce(raw, field);
+      if ("error" in result) {
+        issues.push({
+          rowIndex: idx,
+          rowNumber: idx + 2,
+          field,
+          fieldLabel: def?.label ?? field,
+          rawValue: raw instanceof Date ? raw.toISOString() : String(raw),
+          message: result.error,
+          level: "error",
+        });
+        rowHasError = true;
+        continue;
+      }
+      if (result.value === undefined) continue;
       // @ts-expect-error -- asignación dinámica controlada
-      acc[field] = coerced;
+      acc[field] = result.value;
     }
 
-    if (!acc.name || !acc.arrUsd) {
-      errors.push({ row: idx + 2, message: `Fila ${idx + 2}: faltan campos requeridos (name, arrUsd).` });
+    // Cross-field validation
+    if (
+      typeof acc.seatsPurchased === "number" &&
+      typeof acc.seatsActive === "number" &&
+      acc.seatsActive > acc.seatsPurchased
+    ) {
+      issues.push({
+        rowIndex: idx,
+        rowNumber: idx + 2,
+        field: "seatsActive",
+        fieldLabel: "Seats activos",
+        rawValue: String(acc.seatsActive),
+        message: `seats activos (${acc.seatsActive}) > seats comprados (${acc.seatsPurchased})`,
+        level: "warning",
+      });
+    }
+
+    if (acc.csmAssigned && csmLookup.size > 0) {
+      const norm = acc.csmAssigned.trim().toLowerCase();
+      if (!csmLookup.has(norm)) {
+        issues.push({
+          rowIndex: idx,
+          rowNumber: idx + 2,
+          field: "csmAssigned",
+          fieldLabel: "CSM asignado",
+          rawValue: acc.csmAssigned,
+          message: `CSM "${acc.csmAssigned}" no existe en el equipo. Disponibles: ${knownCsmNames.join(", ") || "—"}`,
+          level: "error",
+        });
+        rowHasError = true;
+      }
+    }
+
+    if (rowHasError) return;
+
+    if (!acc.name || typeof acc.arrUsd !== "number") {
+      issues.push({
+        rowIndex: idx,
+        rowNumber: idx + 2,
+        field: !acc.name ? "name" : "arrUsd",
+        fieldLabel: !acc.name ? "Empresa" : "ARR (USD)",
+        rawValue: "",
+        message: "campo requerido vacío",
+        level: "error",
+      });
       return;
     }
 
@@ -229,9 +416,10 @@ export function buildAccounts(
         slackContact: acc.slackContact    ? String(acc.slackContact)   : "",
       },
     });
+    validRowIndexes.push(idx);
   });
 
-  return { accounts, errors };
+  return { accounts, validRowIndexes, issues, mappingErrors };
 }
 
 type TFn = (key: string) => string;

@@ -1,15 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { parseFile, downloadTemplate, type ParsedSheet } from "../../utils/excelParser";
 import {
-  TARGET_FIELDS, suggestMapping, buildAccounts, fieldLabel, type FieldKey,
+  TARGET_FIELDS, suggestMapping, buildAccounts, fieldLabel, type FieldKey, type CellIssue,
 } from "../../utils/columnMapper";
 import { useDataContext } from "../../context/DataContext";
 import { useToast } from "../../components/Toast";
 import { SurfaceCard } from "../../components/SurfaceCard";
 import { useI18n } from "../../context/I18nContext";
 import { motion } from "framer-motion";
-import { importAccounts } from "../../api/accounts";
+import { importAccounts, getImportCsms, type ImportCsm } from "../../api/accounts";
 import type { AccountSummary, ImportAccountRow, ImportResponse } from "../../types";
 
 type Phase = "idle" | "parsing" | "map" | "success";
@@ -46,6 +46,18 @@ export default function Upload() {
   const [dragOver, setDragOver] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResponse | null>(null);
+  const [csms, setCsms] = useState<ImportCsm[]>([]);
+  const [validation, setValidation] = useState<{
+    issues: CellIssue[];
+    validCount: number;
+    invalidRowNumbers: number[];
+  } | null>(null);
+
+  useEffect(() => {
+    getImportCsms()
+      .then(setCsms)
+      .catch(() => setCsms([]));
+  }, []);
 
   const STEPS = [
     { phase: "idle"    as Phase, label: t("up.step1") },
@@ -57,6 +69,28 @@ export default function Upload() {
     const used = new Set(Object.values(mapping));
     return TARGET_FIELDS.filter((f) => f.required && !used.has(f.key));
   }, [mapping]);
+
+  // Re-run cell-level validation every time the mapping or CSM list changes.
+  useEffect(() => {
+    if (!parsed || requiredMissing.length > 0) {
+      setValidation(null);
+      return;
+    }
+    const csmNames = csms.map((c) => c.name);
+    const built = buildAccounts(parsed.rows, mapping, csmNames);
+    const invalidRowNumbers = Array.from(
+      new Set(
+        built.issues
+          .filter((i) => i.level === "error")
+          .map((i) => i.rowNumber)
+      )
+    ).sort((a, b) => a - b);
+    setValidation({
+      issues: built.issues,
+      validCount: built.accounts.length,
+      invalidRowNumbers,
+    });
+  }, [parsed, mapping, csms, requiredMissing.length]);
 
   async function handleFile(f: File) {
     setFile(f);
@@ -110,13 +144,21 @@ export default function Upload() {
 
   async function commit() {
     if (!parsed) return;
-    const result = buildAccounts(parsed.rows, mapping);
-    if (result.errors.length > 0) {
-      toast.push(result.errors.slice(0, 2).map((e) => e.message).join(" · "), "error");
+    const csmNames = csms.map((c) => c.name);
+    const result = buildAccounts(parsed.rows, mapping, csmNames);
+
+    if (result.mappingErrors.length > 0) {
+      toast.push(result.mappingErrors.join(" · "), "error");
       return;
     }
     if (result.accounts.length === 0) {
-      toast.push("No valid accounts generated", "error");
+      const errorCount = result.issues.filter((i) => i.level === "error").length;
+      toast.push(
+        errorCount > 0
+          ? `No se puede importar ninguna fila: ${errorCount} errores de validación detectados arriba`
+          : "No hay filas válidas para importar",
+        "error"
+      );
       return;
     }
 
@@ -124,21 +166,28 @@ export default function Upload() {
     try {
       const payload = { accounts: result.accounts.map(toImportRow) };
       const response = await importAccounts(payload);
-      setImportResult(response);
 
-      const summary = `${response.inserted} importadas · ${response.skipped} duplicadas · ${response.errors.length} errores`;
-      const tone = response.errors.length > 0 ? "warning" : "success";
+      const skippedClient = (parsed.totalRows ?? parsed.rows.length) - result.accounts.length;
+      const enrichedResponse: ImportResponse = {
+        ...response,
+        skipped: response.skipped + skippedClient,
+        errors: [
+          ...result.issues
+            .filter((i) => i.level === "error")
+            .map((i) => ({
+              rowIndex: i.rowIndex,
+              name: i.fieldLabel,
+              message: `${i.fieldLabel}: ${i.message}`,
+            })),
+          ...response.errors,
+        ],
+      };
+      setImportResult(enrichedResponse);
+
+      const summary = `${enrichedResponse.inserted} importadas · ${enrichedResponse.skipped} omitidas · ${enrichedResponse.errors.length} errores`;
+      const tone = enrichedResponse.errors.length > 0 ? "warning" : "success";
       toast.push(summary, tone);
 
-      if (response.errors.length > 0) {
-        const firstTwo = response.errors
-          .slice(0, 2)
-          .map((e) => `Fila ${e.rowIndex + 2} (${e.name}): ${e.message}`)
-          .join(" · ");
-        toast.push(firstTwo, "error");
-      }
-
-      // Limpiar el cache local para que el dashboard lea desde la DB
       reset();
       setPhase("success");
     } catch (e) {
@@ -344,21 +393,112 @@ export default function Upload() {
                   </tr>
                 </thead>
                 <tbody>
-                  {parsed.rows.slice(0, 5).map((row, i) => (
-                    <tr key={i}>
-                      <td className="text-right tabular-nums text-[11px] text-slate-500 w-[2rem] min-w-[2rem] max-w-[2rem] px-1.5">{i + 1}</td>
-                      {Object.entries(mapping).filter(([, v]) => v !== "ignore").map(([header]) => (
-                        <td key={header} className="text-slate-300 truncate max-w-[200px]">
-                          {String(row[header] ?? "—") || "—"}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  {parsed.rows.slice(0, 5).map((row, i) => {
+                    const rowNumber = i + 2;
+                    const hasError = validation?.invalidRowNumbers.includes(rowNumber);
+                    const fieldErrors = new Set(
+                      validation?.issues
+                        .filter((iss) => iss.rowNumber === rowNumber && iss.level === "error")
+                        .map((iss) => iss.field) ?? []
+                    );
+                    return (
+                      <tr key={i} className={hasError ? "bg-rose-500/[0.04]" : undefined}>
+                        <td className="text-right tabular-nums text-[11px] text-slate-500 w-[2rem] min-w-[2rem] max-w-[2rem] px-1.5">{i + 1}</td>
+                        {Object.entries(mapping).filter(([, v]) => v !== "ignore").map(([header, field]) => {
+                          const cellHasError = fieldErrors.has(field as FieldKey);
+                          const raw = row[header];
+                          const display = raw instanceof Date
+                            ? raw.toISOString().slice(0, 10)
+                            : String(raw ?? "—") || "—";
+                          return (
+                            <td
+                              key={header}
+                              className={`truncate max-w-[200px] ${cellHasError ? "text-rose-300 font-medium" : "text-slate-300"}`}
+                            >
+                              {display}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               </div>
             </div>
           </SurfaceCard>
+
+          {validation && validation.issues.length > 0 && (
+            <SurfaceCard
+              weight="panel"
+              tone={validation.issues.some((i) => i.level === "error") ? "rose" : "amber"}
+              hoverLift={false}
+              motionIndex={3}
+              className="p-5"
+            >
+              <div className="flex items-center justify-between mb-3 gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <svg {...SVG} width="14" height="14" className={validation.issues.some((i) => i.level === "error") ? "text-rose-300" : "text-amber-300"}>
+                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
+                      <line x1="12" y1="9" x2="12" y2="13"/>
+                      <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    Problemas detectados ({validation.issues.length})
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {validation.validCount} de {parsed.totalRows} filas pasarán al servidor.
+                    {validation.invalidRowNumbers.length > 0 && ` ${validation.invalidRowNumbers.length} se omitirán por errores.`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-400" />
+                    <span className="text-rose-300 tabular-nums">{validation.issues.filter((i) => i.level === "error").length}</span>
+                    <span className="text-slate-500">errores</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span className="text-amber-300 tabular-nums">{validation.issues.filter((i) => i.level === "warning").length}</span>
+                    <span className="text-slate-500">avisos</span>
+                  </div>
+                </div>
+              </div>
+              <ul className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                {validation.issues.slice(0, 100).map((issue, idx) => (
+                  <li
+                    key={`${issue.rowIndex}-${issue.field}-${idx}`}
+                    className={`text-xs leading-snug px-3 py-2 rounded-md border ${
+                      issue.level === "error"
+                        ? "bg-rose-500/10 border-rose-500/25 text-rose-200"
+                        : "bg-amber-500/10 border-amber-500/25 text-amber-200"
+                    }`}
+                  >
+                    <span className="font-semibold tabular-nums">Fila {issue.rowNumber}</span>
+                    <span className="mx-1.5 text-slate-500">·</span>
+                    <span className="font-medium">{issue.fieldLabel}</span>
+                    <span className="mx-1.5 text-slate-500">·</span>
+                    <span>{issue.message}</span>
+                    {issue.rawValue && (
+                      <span className="ml-1.5 text-slate-500">
+                        (valor recibido: <code className="text-slate-300">{issue.rawValue.slice(0, 60)}</code>)
+                      </span>
+                    )}
+                  </li>
+                ))}
+                {validation.issues.length > 100 && (
+                  <li className="text-xs text-slate-500 italic px-3 py-1">
+                    … y {validation.issues.length - 100} problemas más
+                  </li>
+                )}
+              </ul>
+              {csms.length > 0 && validation.issues.some((i) => i.field === "csmAssigned") && (
+                <p className="mt-3 text-[11px] text-slate-500">
+                  CSMs disponibles en el equipo: <span className="text-slate-300">{csms.map((c) => c.name).join(", ")}</span>
+                </p>
+              )}
+            </SurfaceCard>
+          )}
 
           <div className="flex items-center justify-between gap-3">
             <button onClick={startOver} className="text-sm font-medium text-slate-400 hover:text-white transition-colors">
@@ -366,7 +506,11 @@ export default function Upload() {
             </button>
             <button
               onClick={commit}
-              disabled={requiredMissing.length > 0 || importing}
+              disabled={
+                requiredMissing.length > 0 ||
+                importing ||
+                (validation !== null && validation.validCount === 0)
+              }
               className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-md transition-colors"
             >
               {importing ? (
@@ -376,7 +520,9 @@ export default function Upload() {
                 </>
               ) : (
                 <>
-                  {t("up.import", { n: parsed.totalRows })}
+                  {t("up.import", {
+                    n: validation?.validCount ?? parsed.totalRows,
+                  })}
                   <svg {...SVG} width="14" height="14"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                 </>
               )}
@@ -401,7 +547,7 @@ export default function Upload() {
             </div>
             <div>
               <p className="text-slate-300 font-semibold tabular-nums">{importResult.skipped}</p>
-              <p className="text-xs text-slate-500">duplicadas (omitidas)</p>
+              <p className="text-xs text-slate-500">omitidas (duplicadas o inválidas)</p>
             </div>
             <div>
               <p className={`font-semibold tabular-nums ${importResult.errors.length > 0 ? "text-rose-300" : "text-slate-300"}`}>{importResult.errors.length}</p>
@@ -410,11 +556,13 @@ export default function Upload() {
           </div>
 
           {importResult.errors.length > 0 && (
-            <div className="text-left max-w-xl mx-auto mb-6 px-4 py-3 bg-rose-500/10 border border-rose-500/30 rounded-md">
-              <p className="text-xs font-semibold text-rose-200 mb-1.5">Filas con error:</p>
-              <ul className="space-y-0.5 max-h-32 overflow-y-auto">
+            <div className="text-left max-w-2xl mx-auto mb-6 px-4 py-3 bg-rose-500/10 border border-rose-500/30 rounded-md">
+              <p className="text-xs font-semibold text-rose-200 mb-1.5">
+                {importResult.errors.length} {importResult.errors.length === 1 ? "fila" : "filas"} con error:
+              </p>
+              <ul className="space-y-0.5 max-h-72 overflow-y-auto pr-1">
                 {importResult.errors.map((err, i) => (
-                  <li key={i} className="text-xs text-rose-300">
+                  <li key={i} className="text-xs text-rose-300 leading-snug">
                     · Fila {err.rowIndex + 2} ({err.name || "sin nombre"}): {err.message}
                   </li>
                 ))}
