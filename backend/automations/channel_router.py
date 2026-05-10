@@ -1,5 +1,6 @@
 """Channel router — picks email/slack/whatsapp/voice."""
 import os
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -21,8 +22,8 @@ def _sb() -> Client:
 
 
 def _callback_url() -> str:
-    base = os.environ["API_BASE_URL"].rstrip("/")
-    return f"{base}/dispatch-intervention/callback"
+    base = os.environ.get("API_BASE_URL", "").rstrip("/")
+    return f"{base}/api/v1/dispatch-intervention/callback"
 
 
 def _now() -> str:
@@ -43,7 +44,23 @@ class DispatchRequest(BaseModel):
     message_body: str
     message_subject: Optional[str] = None
     voice_config: Optional[VoiceConfig] = None
-    # WhatsApp template fields (requeridos cuando channel = "whatsapp")
+    # Campos de cuenta (email + slack)
+    to_name: Optional[str] = None
+    account_id: Optional[str] = None
+    account_name: Optional[str] = None
+    account_arr: Optional[float] = None
+    account_industry: Optional[str] = None
+    account_plan: Optional[str] = None
+    # Campos de agente (slack approval)
+    trigger_reason: Optional[str] = None
+    confidence: Optional[float] = None
+    playbook_id: Optional[str] = None
+    playbook_success_rate: Optional[float] = None
+    approval_reasoning: Optional[str] = None
+    agent_reasoning: Optional[str] = None
+    auto_approved: Optional[bool] = None
+    approval_status: Optional[str] = None
+    # WhatsApp template fields
     nombre_cliente: Optional[str] = None
     nombre_empresa: Optional[str] = None
     motivo_alerta: Optional[str] = None
@@ -86,29 +103,40 @@ def _update_intervention(intervention_id: str, data: dict) -> None:
 
 @router.post("", status_code=202)
 def dispatch_intervention(body: DispatchRequest):
-    callback = _callback_url()
     audio_url: str | None = None
     fallback_used = False
 
     try:
+        callback = _callback_url()
         if body.channel == "email":
             make_webhooks.send_email(
                 intervention_id=body.intervention_id,
                 to=body.recipient,
+                to_name=body.to_name or "",
                 subject=body.message_subject or "Un mensaje de tu CSM",
                 body=body.message_body,
-                from_name="Churn Oracle",
-                from_email="noreply@churnoracle.demo",
-                callback_url=callback,
+                account_id=body.account_id or "",
+                account_name=body.account_name or "",
             )
 
         elif body.channel == "slack":
             make_webhooks.send_slack(
                 intervention_id=body.intervention_id,
-                channel=os.environ.get("DEMO_SLACK_CHANNEL", "#csm-alerts"),
-                message=body.message_body,
-                csm_to_mention="@csm",
-                callback_url=callback,
+                account_id=body.account_id or "",
+                account_name=body.account_name or "",
+                status=body.approval_status or "pending",
+                auto_approved=body.auto_approved if body.auto_approved is not None else True,
+                channel=body.channel,
+                recipient=body.recipient,
+                trigger_reason=body.trigger_reason or "",
+                confidence=body.confidence or 0.0,
+                playbook_id=body.playbook_id or "",
+                playbook_success_rate=body.playbook_success_rate,
+                approval_reasoning=body.approval_reasoning or "",
+                agent_reasoning=body.agent_reasoning or body.message_body,
+                account_arr=body.account_arr or 0,
+                account_industry=body.account_industry or "",
+                account_plan=body.account_plan or "",
             )
 
         elif body.channel == "whatsapp":
@@ -258,3 +286,13 @@ def receive_conversation(body: ConversationPayload):
         })
 
     return {"received": True, "account_id": account_id}
+
+
+@router.get("/approve")
+def approve_intervention(intervention_id: str, action: str):
+    if action not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail={"error": "invalid_action", "message": "action must be approve or reject"})
+
+    status = "approved" if action == "approve" else "rejected"
+    _update_intervention(intervention_id, {"status": status})
+    return {"intervention_id": intervention_id, "status": status}

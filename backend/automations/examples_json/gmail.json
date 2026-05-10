@@ -1,9 +1,9 @@
 {
-  "intervention_id": "email-456-def",
-  "to_email": "cliente@empresa.com",
-  "subject": "Hola Juan, ¿podemos hablar 5 minutos?",
-  "body": "Hola Juan,\n\nVi que...",
-  "from_name": "Carlos López",
-  "from_email": "carlos@acmesaas.io",
-  "callback_url": "https://churn-oracle-api.../api/v1/dispatch-intervention/callback"
-}
+  "intervention_id": "uuid",                                  
+  "to": "pamela40@teran.com",                             
+  "to_name": "Juan Bernardo",
+  "subject": "Resolving Your Technical Concerns",             
+  "body": "Hi Juan Bernardo,\n\nI noticed unresolved support tickets...\n\nBest,\nAna",                                    
+  "account_id": "uuid",                                       
+  "account_name": "Acme Corp"                                 
+}          

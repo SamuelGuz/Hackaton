@@ -1,7 +1,18 @@
-{
-  "intervention_id": "slack-789-ghi",
-  "channel": "#csm-alerts",
-  "message": ":rotating_light: Cuenta en riesgo: *Acme Corp*\n\nChurn risk: 73%\nAcción sugerida: ...",
-  "csm_to_mention": "@carlos",
-  "callback_url": "https://tu-backend.com/api/v1/callback"
-}
+{                                                             
+  "intervention_id": "uuid",                                  
+  "account_id": "uuid",                                       
+  "account_name": "Acme Corp",                                
+  "status": "pending_approval",                               
+  "auto_approved": false,                                     
+  "channel": "email",                                     
+  "recipient": "pamela40@teran.com",                          
+  "trigger_reason": "churn_risk_high",
+  "confidence": 0.85,                                         
+  "playbook_id": "692f2c29-3b8e-511a-8810-dbc82d4b1eb4",  
+  "playbook_success_rate": 0.73,                              
+  "approval_reasoning": "ARR $29,795 above $25,000 threshold",
+  "agent_reasoning": "Account showing high churn risk...",    
+  "account_arr": 29795,                                       
+  "account_industry": "fintech",                              
+  "account_plan": "growth"                                    
+} 
