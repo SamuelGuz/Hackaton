@@ -3,6 +3,47 @@
 export type HealthStatus = "critical" | "at_risk" | "stable" | "healthy" | "expanding";
 export type InterventionChannel = "email" | "slack" | "whatsapp" | "voice_call";
 export type InterventionOutcome = "success" | "partial" | "no_response" | "negative" | "churned";
+export type InterventionStatus =
+  | "pending_approval"
+  | "rejected"
+  | "pending"
+  | "sent"
+  | "delivered"
+  | "opened"
+  | "responded"
+  | "failed";
+
+export interface Intervention {
+  id: string;
+  accountId: string;
+  accountName: string;
+  triggerReason: string;
+  channel: InterventionChannel;
+  recipient: string;
+  messageSubject: string | null;
+  messageBody: string;
+  agentReasoning: string;
+  confidenceScore: number;
+  playbookIdUsed: string | null;
+  requiresApproval: boolean;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  autoApproved: boolean;
+  rejectionReason: string | null;
+  status: InterventionStatus;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  respondedAt: string | null;
+  outcome: InterventionOutcome | null;
+  outcomeNotes: string | null;
+  outcomeRecordedAt: string | null;
+  createdAt: string;
+}
+
+export interface InterventionsResponse {
+  interventions: Intervention[];
+  total: number;
+}
 
 export interface CsmRef {
   id: string;
