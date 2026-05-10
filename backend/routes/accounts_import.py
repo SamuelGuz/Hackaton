@@ -142,8 +142,8 @@ def _import_accounts_rows(rows: list[Any]) -> ImportResponse:
     skipped = 0
 
     for idx, row in enumerate(rows):
-        number = row.account_number.strip()
-        if number in existing_numbers:
+        number = (row.account_number or "").strip()
+        if number and number in existing_numbers:
             skipped += 1
             continue
 
@@ -492,6 +492,20 @@ def _parse_conversation_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]
             item["participants"] = [p.strip() for p in participants.split(sep) if p.strip()]
         out.append(item)
     return out
+
+
+@router.get("/import/csms")
+def list_import_csms(_auth: None = Depends(require_api_key)) -> dict[str, list[dict[str, str]]]:
+    """List of CSMs (id + name) so the import UI can validate names before submitting."""
+    client = get_client()
+    rows = client.table("csm_team").select("id,name").execute().data or []
+    return {
+        "csms": [
+            {"id": str(r["id"]), "name": str(r["name"])}
+            for r in rows
+            if r.get("id") and r.get("name")
+        ]
+    }
 
 
 @router.post("/import", response_model=ImportResponse)

@@ -14,7 +14,7 @@ HealthStatusLiteral = Literal["critical", "at_risk", "stable", "healthy", "expan
 class ImportAccountRow(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    account_number: str
+    account_number: str | None = None
     name: str
     industry: str
     size: str
@@ -36,8 +36,6 @@ class ImportAccountRow(BaseModel):
     current_nps_score: int | None = None
     current_nps_category: Literal["detractor", "passive", "promoter"] | None = None
     last_nps_at: datetime | None = None
-
-    account_number: str | None = None
 
     churn_risk_score: int | None = None
     expansion_score: int | None = None

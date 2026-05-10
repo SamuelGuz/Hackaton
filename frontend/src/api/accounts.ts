@@ -66,3 +66,20 @@ export async function importAccounts(payload: ImportRequest): Promise<ImportResp
     body: JSON.stringify(payload),
   });
 }
+
+export interface ImportCsm {
+  id: string;
+  name: string;
+}
+
+export async function getImportCsms(): Promise<ImportCsm[]> {
+  if (USE_MOCK) {
+    return [
+      { id: "mock-1", name: "Ana Restrepo" },
+      { id: "mock-2", name: "Diego Martínez" },
+      { id: "mock-3", name: "Sofía Hernández" },
+    ];
+  }
+  const res = await apiFetch<{ csms: ImportCsm[] }>("/accounts/import/csms");
+  return res.csms;
+}

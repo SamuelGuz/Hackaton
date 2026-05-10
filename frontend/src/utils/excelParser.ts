@@ -1,30 +1,35 @@
 import * as XLSX from "xlsx";
 
+export type CellValue = string | number | boolean | Date;
+
 export interface ParsedSheet {
   sheetName: string;
   headers: string[];
-  rows: Record<string, string | number>[];
+  rows: Record<string, CellValue>[];
   totalRows: number;
 }
 
 export async function parseFile(file: File): Promise<ParsedSheet> {
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: "array" });
+  // cellDates: true makes XLSX convert Excel serial dates into JS Date objects automatically,
+  // so the user never sees "46122" as the date — they see a real date.
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
   if (!sheet) throw new Error("The file contains no valid sheets.");
 
-  const aoa = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, {
+  const aoa = XLSX.utils.sheet_to_json<CellValue[]>(sheet, {
     header: 1,
     defval: "",
     blankrows: false,
+    raw: true,
   });
 
   if (aoa.length === 0) throw new Error("The sheet is empty.");
 
-  const headers = (aoa[0] as (string | number)[]).map((h) => String(h).trim());
-  const rows = (aoa.slice(1) as (string | number)[][]).map((row) => {
-    const obj: Record<string, string | number> = {};
+  const headers = (aoa[0] as CellValue[]).map((h) => String(h).trim());
+  const rows = (aoa.slice(1) as CellValue[][]).map((row) => {
+    const obj: Record<string, CellValue> = {};
     headers.forEach((h, i) => {
       const v = row[i];
       obj[h] = v === undefined || v === null ? "" : v;
