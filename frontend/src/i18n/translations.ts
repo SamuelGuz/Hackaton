@@ -238,6 +238,7 @@ const TRANSLATIONS = {
   "modal.cooloffTitle":  { es: "Ya hay una intervención pendiente para esta cuenta", en: "This account already has a pending intervention" },
   "modal.cooloffBody":   { es: "El agente no puede generar una nueva hasta que la actual sea aprobada, despachada o resuelta.", en: "The agent cannot generate a new one until the current one is approved, dispatched, or resolved." },
   "modal.cooloffClose":  { es: "Ver intervenciones",                  en: "View interventions" },
+  "modal.needsApprovalBody": { es: "Esta intervención fue generada y persistida pero requiere aprobación de un CSM antes de ser despachada. Revisala en la pestaña Intervenciones.", en: "This intervention was generated and stored but requires a CSM approval before dispatching. Review it in the Interventions tab." },
   "modal.approvalRequired":  { es: "Esta cuenta requiere aprobación de CSM antes de despachar. Al hacer clic en Lanzar estás aprobando el envío.", en: "This account requires CSM approval before dispatching. Clicking Launch confirms your approval." },
 
   // Closed-Loop page

@@ -64,6 +64,11 @@ export default function AccountDetail() {
   const [voiceSession, setVoiceSession] = useState<{
     interventionId: string;
     signedUrl: string;
+    triggerReason?: string;
+    messageBody?: string;
+    championName?: string;
+    companyName?: string;
+    csmName?: string;
   } | null>(null);
 
   // Una intervención está "activa" si todavía no terminó su ciclo (no resuelta, no rechazada).
@@ -237,6 +242,11 @@ export default function AccountDetail() {
             <VoiceCallPanel
               interventionId={voiceSession.interventionId}
               signedUrl={voiceSession.signedUrl}
+              triggerReason={voiceSession.triggerReason ?? ""}
+              messageBody={voiceSession.messageBody ?? ""}
+              championName={voiceSession.championName ?? account.champion.name}
+              companyName={voiceSession.companyName ?? account.name}
+              csmName={voiceSession.csmName ?? account.csm.name}
               onClose={() => setVoiceSession(null)}
             />
           )}
@@ -339,10 +349,14 @@ export default function AccountDetail() {
           ) : (
             <>
               <button
+                disabled={interventionsLoading}
                 onClick={() => setModalOpen(true)}
-                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gradient-to-br from-rose-500 to-orange-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-500/20 hover:from-rose-400 hover:to-orange-400 hover:shadow-rose-500/40 transition-all"
+                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gradient-to-br from-rose-500 to-orange-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-500/20 hover:from-rose-400 hover:to-orange-400 hover:shadow-rose-500/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <svg {...SVG} strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
+                {interventionsLoading
+                  ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  : <svg {...SVG} strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
+                }
                 {t("detail.ctaButton")}
               </button>
 
