@@ -115,7 +115,7 @@ def _fetch_dynamic_vars(intervention_id: str) -> dict[str, str]:
     if account_id:
         acc = (
             sb.table("accounts")
-            .select("name,champion_name,csm_assigned")
+            .select("name,champion_name,csm_team(name)")
             .eq("id", account_id)
             .limit(1)
             .execute()
@@ -123,7 +123,11 @@ def _fetch_dynamic_vars(intervention_id: str) -> dict[str, str]:
         acc_row = (getattr(acc, "data", None) or [{}])[0]
         account_name = str(acc_row.get("name") or "")
         champion_name = str(acc_row.get("champion_name") or "")
-        csm_name = str(acc_row.get("csm_assigned") or "")
+        csm_team = acc_row.get("csm_team")
+        if isinstance(csm_team, dict):
+            csm_name = str(csm_team.get("name") or "")
+        elif isinstance(csm_team, list) and csm_team:
+            csm_name = str((csm_team[0] or {}).get("name") or "")
 
     trigger_reason = str(inv_row.get("trigger_reason") or "churn_risk_high")
     message_body = str(inv_row.get("message_body") or "")
