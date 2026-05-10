@@ -297,13 +297,18 @@ def _load_fresh_snapshot(account_id: str) -> CrystalBallOutput | None:
     if datetime.now(timezone.utc) - computed_at > timedelta(hours=CACHE_TTL_HOURS):
         return None
 
+    # Treat seed/incomplete rows (null confidence or null reasoning) as cache miss
+    # so the LLM re-runs and persists a real value.
+    if row.get("crystal_ball_confidence") is None or not row.get("crystal_ball_reasoning"):
+        return None
+
     try:
         return CrystalBallOutput(
             churn_risk_score=row["churn_risk_score"],
             top_signals=row.get("top_signals") or [],
             predicted_churn_reason=row.get("predicted_churn_reason") or "",
-            confidence=float(row.get("crystal_ball_confidence") or 0.0),
-            reasoning=row.get("crystal_ball_reasoning") or "",
+            confidence=float(row["crystal_ball_confidence"]),
+            reasoning=row["crystal_ball_reasoning"],
         )
     except (ValidationError, KeyError, TypeError) as exc:
         logger.warning("Could not reconstruct cached snapshot for %s: %s", account_id, exc)
