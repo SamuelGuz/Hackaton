@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CsmListItem(BaseModel):
@@ -21,6 +21,7 @@ class AccountListItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str
+    account_number: str
     name: str
     industry: str
     size: str
@@ -103,6 +104,7 @@ class AccountDetailResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str
+    account_number: str
     name: str
     industry: str
     size: str
@@ -134,3 +136,68 @@ class TimelineResponse(BaseModel):
 
     account_id: str
     events: list[TimelineEvent]
+
+
+IndustryLiteral = Literal[
+    "fintech",
+    "healthtech",
+    "edtech",
+    "ecommerce",
+    "logistics",
+    "media",
+    "manufacturing",
+    "real_estate",
+    "hospitality",
+    "professional_services",
+]
+SizeLiteral = Literal["startup", "smb", "mid_market", "enterprise"]
+GeographyLiteral = Literal["latam", "us", "eu", "apac"]
+PlanLiteral = Literal["starter", "growth", "business", "enterprise"]
+NpsCategoryLiteral = Literal["detractor", "passive", "promoter"]
+HealthStatusLiteral = Literal["critical", "at_risk", "stable", "healthy", "expanding"]
+
+
+class InitialHealthPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    churn_risk_score: int = 25
+    expansion_score: int = 30
+    health_status: HealthStatusLiteral = "stable"
+    predicted_churn_reason: str | None = None
+    crystal_ball_reasoning: str = "Cuenta creada vía API; sin análisis Crystal Ball."
+
+
+class CreateAccountRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    account_number: str
+    name: str
+    industry: IndustryLiteral
+    size: SizeLiteral
+    geography: GeographyLiteral
+    plan: PlanLiteral
+    arr_usd: float
+    seats_purchased: int
+    seats_active: int
+    signup_date: datetime
+    contract_renewal_date: datetime
+    champion_name: str
+    champion_email: str
+    champion_role: str
+    champion_phone: str | None = None
+    champion_changed_recently: bool = False
+    csm_id: str
+    last_qbr_date: datetime | None = None
+    current_nps_score: int | None = None
+    current_nps_category: NpsCategoryLiteral | None = None
+    last_nps_at: datetime | None = None
+    health: InitialHealthPayload = Field(default_factory=InitialHealthPayload)
+
+
+class CreateAccountResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    inserted: bool
+    skipped: bool
+    account_id: str | None = None
+    message: str
