@@ -173,12 +173,15 @@ IndustryLiteral = Literal[
     "healthtech",
     "edtech",
     "ecommerce",
+    "saas",
     "logistics",
     "media",
     "manufacturing",
     "real_estate",
     "hospitality",
     "professional_services",
+    "travel",
+    "other",
 ]
 SizeLiteral = Literal["startup", "smb", "mid_market", "enterprise"]
 GeographyLiteral = Literal["latam", "us", "eu", "apac"]

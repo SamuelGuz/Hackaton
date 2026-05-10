@@ -35,7 +35,7 @@ export interface FieldDef {
 
 /** Enums acordados con el backend (ver docs/api-import-endpoints.md). */
 export const ENUM_VALUES: Partial<Record<FieldKey, readonly string[]>> = {
-  industry: ["fintech", "healthtech", "ecommerce", "saas", "edtech", "logistics", "professional_services", "media", "travel", "other"],
+  industry: ["fintech", "healthtech", "edtech", "ecommerce", "saas", "logistics", "media", "manufacturing", "real_estate", "hospitality", "professional_services", "travel", "other"],
   size: ["startup", "smb", "mid_market", "enterprise"],
   geography: ["latam", "us", "eu", "apac"],
   plan: ["starter", "growth", "business", "enterprise"],
