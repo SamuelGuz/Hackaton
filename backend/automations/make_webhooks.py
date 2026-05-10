@@ -1,5 +1,6 @@
 """Make.com webhook dispatcher."""
 import os
+from typing import Optional
 import httpx
 
 
@@ -15,41 +16,63 @@ def _post(url: str, payload: dict) -> dict:
 def send_email(
     intervention_id: str,
     to: str,
+    to_name: str,
     subject: str,
     body: str,
-    from_name: str,
-    from_email: str,
-    callback_url: str,
+    account_id: str,
+    account_name: str,
 ) -> dict:
     return _post(
         os.environ["MAKE_WEBHOOK_EMAIL"],
         {
             "intervention_id": intervention_id,
-            "to_email": to,
+            "to": to,
+            "to_name": to_name,
             "subject": subject,
             "body": body,
-            "from_name": from_name,
-            "from_email": from_email,
-            "callback_url": callback_url,
+            "account_id": account_id,
+            "account_name": account_name,
         },
     )
 
 
 def send_slack(
     intervention_id: str,
+    account_id: str,
+    account_name: str,
+    status: str,
+    auto_approved: bool,
     channel: str,
-    message: str,
-    csm_to_mention: str,
-    callback_url: str,
+    recipient: str,
+    trigger_reason: str,
+    confidence: float,
+    playbook_id: str,
+    playbook_success_rate: Optional[float],
+    approval_reasoning: str,
+    agent_reasoning: str,
+    account_arr: float,
+    account_industry: str,
+    account_plan: str,
 ) -> dict:
     return _post(
         os.environ["MAKE_WEBHOOK_SLACK"],
         {
             "intervention_id": intervention_id,
+            "account_id": account_id,
+            "account_name": account_name,
+            "status": status,
+            "auto_approved": auto_approved,
             "channel": channel,
-            "message": message,
-            "csm_to_mention": csm_to_mention,
-            "callback_url": callback_url,
+            "recipient": recipient,
+            "trigger_reason": trigger_reason,
+            "confidence": confidence,
+            "playbook_id": playbook_id,
+            "playbook_success_rate": playbook_success_rate,
+            "approval_reasoning": approval_reasoning,
+            "agent_reasoning": agent_reasoning,
+            "account_arr": account_arr,
+            "account_industry": account_industry,
+            "account_plan": account_plan,
         },
     )
 
