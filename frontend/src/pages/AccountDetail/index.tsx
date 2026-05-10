@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAccount } from "../../hooks/useAccount";
 import { useInterventions } from "../../hooks/useInterventions";
+import { useHealthHistory } from "../../hooks/useHealthHistory";
 import { useI18n } from "../../context/I18nContext";
 import { CompanyAvatar } from "../../components/CompanyAvatar";
 import { RiskBadge } from "../../components/RiskBadge";
 import { Timeline } from "../../components/Timeline";
+import { HealthHistoryTable } from "../../components/HealthHistoryTable";
 import { ScoreBar } from "../../components/ScoreBar";
 import { InterventionModal } from "../../components/InterventionModal";
 import { VoiceCallPanel } from "../../components/VoiceCallPanel";
@@ -52,6 +55,12 @@ export default function AccountDetail() {
   } = useInterventions(id ? { accountId: id } : {});
   const { t } = useI18n();
   const [modalOpen, setModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"activity" | "history">("activity");
+  const {
+    items: historyItems,
+    loading: historyLoading,
+    error: historyError,
+  } = useHealthHistory(id, activeTab === "history");
   const [voiceSession, setVoiceSession] = useState<{
     interventionId: string;
     signedUrl: string;
@@ -157,11 +166,70 @@ export default function AccountDetail() {
       {/* Body */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <SurfaceCard weight="panel" tone="neutral" hoverLift={false} motionIndex={1} className="lg:col-span-2 p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-sm font-semibold text-white tracking-tight">{t("detail.activity")}</h2>
-            <span className="text-[11px] text-slate-500">{events.length} {t("detail.events")}</span>
+          <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
+            <div role="tablist" aria-label="Account detail sections" className="relative inline-flex p-0.5 bg-slate-900/60 border border-slate-800/80 rounded-lg">
+              {(["activity", "history"] as const).map((tab) => {
+                const isActive = activeTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setActiveTab(tab)}
+                    className={`relative px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                      isActive ? "text-white" : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.span
+                        layoutId="account-detail-tab-pill"
+                        className="absolute inset-0 bg-slate-800/80 border border-slate-700/80 rounded-md"
+                        transition={{ type: "spring", stiffness: 500, damping: 36 }}
+                      />
+                    )}
+                    <span className="relative z-[1]">
+                      {tab === "activity" ? t("detail.activity") : t("history.tab")}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[11px] text-slate-500 tabular-nums">
+              {activeTab === "activity"
+                ? `${events.length} ${t("detail.events")}`
+                : historyLoading
+                ? t("history.loading")
+                : `${historyItems.length} ${t("history.snapshots")}`}
+            </span>
           </div>
-          <Timeline events={events} />
+
+          <AnimatePresence mode="wait">
+            {activeTab === "activity" ? (
+              <motion.div
+                key="activity"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Timeline events={events} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="history"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+              >
+                <HealthHistoryTable
+                  items={historyItems}
+                  loading={historyLoading}
+                  error={historyError}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </SurfaceCard>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">

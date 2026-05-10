@@ -202,6 +202,26 @@ export interface TimelineResponse {
   events: TimelineEvent[];
 }
 
+export interface AccountHealthHistoryItem {
+  id: string;
+  accountId: string;
+  healthStatus: HealthStatus;
+  churnRiskScore: number;
+  expansionScore: number;
+  topSignals: unknown;
+  predictedChurnReason: string | null;
+  crystalBallConfidence: number | null;
+  computedAt: string;
+  computedByVersion: string;
+}
+
+export interface AccountHealthHistoryResponse {
+  items: AccountHealthHistoryItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface InterventionRecommendation {
   /** ID de la fila persistida en `interventions`. Indispensable para dispatch. */
   interventionId: string | null;

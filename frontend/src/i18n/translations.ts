@@ -177,6 +177,20 @@ const TRANSLATIONS = {
   "detail.severityMed":     { es: "Media",            en: "Medium" },
   "detail.severityLow":     { es: "Baja",             en: "Low" },
 
+  // Health history tab
+  "history.tab":            { es: "Historial",                en: "History" },
+  "history.empty":          { es: "Sin snapshots de salud para esta cuenta todavía.", en: "No health snapshots for this account yet." },
+  "history.loading":        { es: "Cargando…",                en: "Loading…" },
+  "history.snapshots":      { es: "snapshots",                en: "snapshots" },
+  "history.trendChurn":     { es: "Churn risk · actual",      en: "Churn risk · current" },
+  "history.trendExpansion": { es: "Expansion · actual",        en: "Expansion · current" },
+  "history.colDate":        { es: "Calculado",                en: "Computed" },
+  "history.colStatus":      { es: "Estado",                    en: "Status" },
+  "history.colChurn":       { es: "Churn risk",                en: "Churn risk" },
+  "history.colExpansion":   { es: "Expansion",                 en: "Expansion" },
+  "history.colConfidence":  { es: "Confianza",                 en: "Confidence" },
+  "history.colVersion":     { es: "Versión",                   en: "Version" },
+
   // Timeline event types
   "timeline.ticket":       { es: "Ticket",    en: "Ticket" },
   "timeline.call":         { es: "Llamada",   en: "Call" },
