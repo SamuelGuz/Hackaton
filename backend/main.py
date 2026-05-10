@@ -25,6 +25,8 @@ _default_origins = [
     "http://127.0.0.1:3000",
     "http://localhost:4173",
     "http://127.0.0.1:4173",
+    "https://backend.dark-army.lat",
+    "http://backend.dark-army.lat",
 ]
 _extra = [o.strip() for o in os.environ.get("FRONTEND_ORIGINS", "").split(",") if o.strip()]
 _allow_origins = list({*_default_origins, *_extra})
