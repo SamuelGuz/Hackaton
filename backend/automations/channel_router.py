@@ -589,8 +589,9 @@ def receive_conversation(body: ConversationPayload):
     Resolución de account_id / intervention_id en tres pasos:
       1. account_id viene directo en el payload.
       2. intervention_id viene en el payload → SELECT desde interventions.
-      3. Fallback: buscar account por champion_email = sender → intervención más
-         reciente en estado sent/delivered.
+      3. Fallback: cuentas con champion_email = sender; si hay varias, la
+         intervención sent/delivered más reciente entre ellas; si solo hay una
+         cuenta y no hay intervención activa, se usa esa cuenta.
     """
     sb = _sb()
     now = body.received_at or _now()
@@ -618,32 +619,38 @@ def receive_conversation(body: ConversationPayload):
         except Exception:
             pass
 
-    # Paso 3: fallback por sender (champion_email) cuando aún no tenemos account_id
+    # Paso 3: fallback por sender (champion_email) cuando aún no tenemos account_id.
+    # Si hay varias cuentas con el mismo email, se usa la intervención más reciente
+    # (sent/delivered) entre todas; con una sola cuenta sin intervención activa se usa esa cuenta.
     if not account_id and body.sender:
         try:
-            acc_row = (
+            acc_rows = (
                 sb.table("accounts")
                 .select("id")
                 .eq("champion_email", body.sender)
-                .maybe_single()
                 .execute()
-            )
-            if acc_row.data:
-                account_id = acc_row.data["id"]
+            ).data or []
+
+            if acc_rows:
+                acc_ids = [a["id"] for a in acc_rows]
                 if not intervention_id:
                     inv_row = (
                         sb.table("interventions")
-                        .select("id, outcome, playbook_id_used")
-                        .eq("account_id", account_id)
+                        .select("id, outcome, playbook_id_used, account_id")
+                        .in_("account_id", acc_ids)
                         .in_("status", ["sent", "delivered"])
                         .order("created_at", desc=True)
                         .limit(1)
                         .execute()
                     )
                     if inv_row.data:
-                        intervention_id = inv_row.data[0]["id"]
-                        existing_outcome = inv_row.data[0].get("outcome")
-                        playbook_id = inv_row.data[0].get("playbook_id_used")
+                        inv0 = inv_row.data[0]
+                        intervention_id = inv0["id"]
+                        existing_outcome = inv0.get("outcome")
+                        playbook_id = inv0.get("playbook_id_used")
+                        account_id = inv0.get("account_id")
+                if not account_id and len(acc_rows) == 1:
+                    account_id = acc_rows[0]["id"]
         except Exception:
             pass
 
@@ -710,31 +717,28 @@ def receive_inbound_message(body: InboundMessageRequest):
     if not phone.startswith("+"):
         phone = "+" + phone
 
-    # Buscar intervención activa por número de teléfono del champion
-    # Buscamos en accounts por champion_phone y tomamos la intervención más reciente
-    # que esté en estado activo (sent, delivered, responded)
-    acc_res = (
+    # Todas las cuentas con este champion_phone (puede haber duplicados).
+    # Elegimos la intervención WhatsApp activa más reciente entre todas ellas.
+    acc_rows = (
         sb.table("accounts")
         .select("id,name,champion_name,champion_phone")
         .eq("champion_phone", phone)
-        .limit(1)
         .execute()
-    )
-    account = (acc_res.data or [None])[0]
+    ).data or []
 
-    if not account:
+    if not acc_rows:
         raise HTTPException(
             status_code=404,
             detail={"error": "account_not_found", "message": f"No account found for phone {phone}"},
         )
 
-    account_id = account["id"]
+    account_ids = [a["id"] for a in acc_rows]
+    accounts_by_id = {a["id"]: a for a in acc_rows}
 
-    # Intervención más reciente activa para esta cuenta por WhatsApp
     inv_res = (
         sb.table("interventions")
-        .select("id,message_body,status,channel")
-        .eq("account_id", account_id)
+        .select("id,message_body,status,channel,account_id")
+        .in_("account_id", account_ids)
         .eq("channel", "whatsapp")
         .in_("status", ["sent", "delivered", "responded"])
         .order("created_at", desc=True)
@@ -747,6 +751,14 @@ def receive_inbound_message(body: InboundMessageRequest):
         raise HTTPException(
             status_code=404,
             detail={"error": "intervention_not_found", "message": "No active whatsapp intervention for this number"},
+        )
+
+    account_id = intervention["account_id"]
+    account = accounts_by_id.get(account_id)
+    if not account:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "data_inconsistency", "message": "Intervention account_id does not match champion_phone lookup"},
         )
 
     intervention_id = intervention["id"]
