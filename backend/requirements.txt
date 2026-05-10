@@ -10,3 +10,5 @@ faker
 tenacity
 tqdm
 pytest
+openpyxl
+python-multipart
