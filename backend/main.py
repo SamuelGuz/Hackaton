@@ -1,12 +1,17 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from backend.routes.agents import router as agents_router
 from backend.routes.accounts import router as accounts_router
 
 app = FastAPI(title="Churn Oracle API")
-
 app.include_router(accounts_router, prefix="/api/v1")
+app.include_router(agents_router, prefix="/api/v1")
 
 
 @app.get("/health")

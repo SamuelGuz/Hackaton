@@ -3,9 +3,16 @@ uvicorn
 pydantic
 python-dotenv
 supabase
+<<<<<<< HEAD
 anthropic
 openai
 httpx
 faker
 tenacity
 tqdm
+=======
+openai>=1.50
+httpx
+pydantic>=2
+pytest
+>>>>>>> e23c0da7e93c860e17367db70f1b177f10531440
