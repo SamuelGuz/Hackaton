@@ -1,11 +1,12 @@
 fastapi
 uvicorn
-pydantic
+pydantic>=2
 python-dotenv
-supabase
+supabase==2.13.0
 anthropic
-openai
+openai>=1.50
 httpx
 faker
 tenacity
 tqdm
+pytest

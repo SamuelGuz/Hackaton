@@ -1,0 +1,328 @@
+@import "tailwindcss";
+
+/* Design tokens — canvas, brand, semantic (single thread + bounded accents) */
+:root {
+  --co-canvas: #0a0c11;
+  --co-canvas-rgb: 10, 12, 17;
+  --co-fg: #e2e8f0;
+  --co-fg-muted: #94a3b8;
+  --co-border-subtle: rgba(30, 41, 59, 0.5);
+  --co-border-table: rgba(30, 41, 59, 0.28);
+  --co-brand-rgb: 99, 102, 241;
+  --co-brand-mid-rgb: 168, 85, 247;
+  --co-brand-accent-rgb: 236, 72, 153;
+  --co-semantic-risk-rgb: 251, 113, 133;
+  --co-semantic-info-rgb: 56, 189, 248;
+  --co-semantic-money-rgb: 251, 191, 36;
+  --co-elev-1: rgba(17, 24, 39, 0.93);
+  --co-elev-2: rgba(10, 14, 22, 0.9);
+  --co-elev-3: rgba(6, 8, 14, 0.96);
+  --co-data-top: rgba(18, 21, 28, 0.97);
+  --co-scrollbar-thumb: #1e293b;
+  --co-scrollbar-thumb-hover: #334155;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--co-canvas);
+  color: var(--co-fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+#root {
+  min-height: 100svh;
+}
+
+/* tabular numbers default for data dense displays */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-in {
+  animation: slide-in 180ms ease-out;
+}
+
+/* sleek scrollbar (dark) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--co-scrollbar-thumb); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--co-scrollbar-thumb-hover); }
+
+/* ─── Navbar styles ──────────────────────────────────────────── */
+
+/* Base states */
+.navbar-top {
+  background: rgba(var(--co-canvas-rgb), 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--co-border-subtle);
+}
+
+.navbar-scrolled {
+  background: rgba(7, 9, 14, 0.88);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-bottom: 1px solid rgba(var(--co-brand-rgb), 0.15);
+  box-shadow:
+    0 4px 32px -4px rgba(0, 0, 0, 0.5),
+    0 0 0 0.5px rgba(var(--co-brand-rgb), 0.08) inset;
+}
+
+/* Gradient animated line at the bottom */
+.navbar-gradient-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(var(--co-brand-rgb), 0) 10%,
+    rgba(var(--co-brand-rgb), 0.7) 30%,
+    rgba(var(--co-brand-mid-rgb), 0.9) 50%,
+    rgba(var(--co-brand-rgb), 0.7) 70%,
+    rgba(var(--co-brand-rgb), 0) 90%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: navbar-line-flow 4s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes navbar-line-flow {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* Logo icon – animated gradient */
+.navbar-logo-icon {
+  background: linear-gradient(
+    135deg,
+    rgb(var(--co-brand-rgb)),
+    rgb(var(--co-brand-mid-rgb)),
+    rgb(var(--co-brand-accent-rgb))
+  );
+  background-size: 200% 200%;
+  animation: logo-gradient-shift 4s ease infinite;
+  box-shadow: 0 0 16px rgba(var(--co-brand-rgb), 0.4);
+}
+
+@keyframes logo-gradient-shift {
+  0%   { background-position: 0% 0%; }
+  50%  { background-position: 100% 100%; }
+  100% { background-position: 0% 0%; }
+}
+
+/* Logo halo – pulsing glow ring */
+.navbar-logo-halo {
+  position: absolute;
+  inset: -4px;
+  border-radius: 16px;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--co-brand-rgb), 0.35),
+    rgba(var(--co-brand-mid-rgb), 0.35)
+  );
+  filter: blur(8px);
+  animation: logo-halo-pulse 3s ease-in-out infinite;
+  z-index: 0;
+}
+
+@keyframes logo-halo-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.15); }
+}
+
+/* Brand name gradient text */
+.navbar-brand-text {
+  background: linear-gradient(
+    90deg,
+    var(--co-fg) 0%,
+    rgb(165, 180, 252) 55%,
+    rgb(196, 181, 253) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Active nav pill */
+.navbar-active-pill {
+  background: rgba(var(--co-brand-rgb), 0.15);
+  border: 1px solid rgba(var(--co-brand-rgb), 0.25);
+  box-shadow:
+    0 0 12px rgba(var(--co-brand-rgb), 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* KPI / elevated tile backgrounds (tokens) */
+.co-surface-tile-bg {
+  background: linear-gradient(163deg, var(--co-elev-1) 0%, var(--co-elev-2) 48%, var(--co-elev-3) 100%);
+}
+
+.co-surface-data-bg {
+  background: linear-gradient(
+    to bottom,
+    var(--co-data-top) 0%,
+    rgba(var(--co-canvas-rgb), 0.99) 100%
+  );
+}
+
+.co-card-gloss {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.26;
+  mix-blend-mode: soft-light;
+  transition: opacity 0.5s ease;
+  background: linear-gradient(
+    to bottom right,
+    rgba(255, 255, 255, 0.05),
+    transparent,
+    rgba(var(--co-brand-mid-rgb), 0.035)
+  );
+}
+
+.group:hover .co-card-gloss {
+  opacity: 0.48;
+}
+
+/* Dashboard page hero (subtle brand wash) */
+.co-dash-hero {
+  position: absolute;
+  pointer-events: none;
+  inset: -12% -8% auto -8%;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse 70% 55% at 50% 0%,
+    rgba(var(--co-brand-rgb), 0.09) 0%,
+    rgba(var(--co-brand-mid-rgb), 0.05) 35%,
+    transparent 70%
+  );
+  z-index: 0;
+}
+
+.co-dash-hero-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Surface cards (textura + capas) ─────────────────────────── */
+
+.sc-card-noise {
+  opacity: 0.042;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+
+/* ─── Tablas dentro de paneles (misma familia que SurfaceCard, lectura rejilla) ─ */
+
+.co-table-wrap {
+  padding: 0.35rem 0.4rem 0.5rem;
+}
+
+.co-table-shell {
+  border-radius: 0.75rem;
+  overflow: auto;
+  max-height: min(68vh, 640px);
+  background: linear-gradient(180deg, rgba(6, 10, 18, 0.55) 0%, rgba(4, 7, 12, 0.75) 100%);
+}
+
+/* Contenedor tipo “data”: una sola superficie, tabla pegada al panel */
+.surface-card-data .co-table-wrap {
+  padding: 0;
+}
+
+.surface-card-data .co-table-shell {
+  border-radius: 0;
+  background: transparent;
+}
+
+.co-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.co-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  padding: 0.65rem 1rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--co-fg-muted);
+  text-align: left;
+  vertical-align: bottom;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.72) 0%, rgba(15, 23, 42, 0.88) 100%);
+  border-bottom: 1px solid rgba(51, 65, 85, 0.28);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Cabeceras con subtítulo (p. ej. preview import) */
+.co-table.co-table-head-plain thead th {
+  text-transform: none;
+  letter-spacing: 0.03em;
+  font-size: 0.6875rem;
+  vertical-align: top;
+}
+
+.co-table tbody td {
+  padding: 0.7rem 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--co-border-table);
+  transition: background-color 0.14s ease;
+}
+
+.co-table tbody tr:nth-child(even):not(:hover):not(:focus-within) td {
+  background-color: rgba(255, 255, 255, 0.018);
+}
+
+.co-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.co-table tbody tr:not(.co-table-expand):hover td {
+  background-color: rgba(var(--co-brand-rgb), 0.07);
+}
+
+.co-table tbody tr:not(.co-table-expand):focus-within td {
+  background-color: rgba(var(--co-brand-rgb), 0.1);
+}
+
+.co-table tbody tr.co-table-row-active td {
+  background-color: rgba(30, 41, 59, 0.42);
+}
+
+.co-table tbody tr.co-table-row-active:hover td {
+  background-color: rgba(36, 44, 62, 0.55);
+}
+
+.co-table tbody tr.co-table-expand td {
+  background: rgba(12, 18, 30, 0.75);
+  border-bottom: 1px solid rgba(51, 65, 85, 0.2);
+  padding-top: 0.35rem;
+}
+
+.co-table-sm thead th {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.5625rem;
+}
+
+.co-table-sm tbody td {
+  padding: 0.5rem 0.75rem;
+}

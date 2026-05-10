@@ -1,0 +1,211 @@
+import { useState } from "react";
+import { useParams, Link } from "react-router-dom";
+import { useAccount } from "../../hooks/useAccount";
+import { useI18n } from "../../context/I18nContext";
+import { CompanyAvatar } from "../../components/CompanyAvatar";
+import { RiskBadge } from "../../components/RiskBadge";
+import { Timeline } from "../../components/Timeline";
+import { ScoreBar } from "../../components/ScoreBar";
+import { InterventionModal } from "../../components/InterventionModal";
+import { SurfaceCard } from "../../components/SurfaceCard";
+import { humanizeI18n, formatArr, formatRenewal, daysUntil } from "../../utils/format";
+
+const SVG = {
+  width: 16, height: 16, viewBox: "0 0 24 24",
+  fill: "none", stroke: "currentColor",
+  strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
+};
+
+function MetricBlock({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1">{label}</p>
+      <p className="text-base font-semibold text-slate-100 tabular-nums leading-tight">{value}</p>
+      {sub && <p className="text-[11px] text-slate-500 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+export default function AccountDetail() {
+  const { id } = useParams<{ id: string }>();
+  const { account, events, loading, error } = useAccount(id);
+  const { t } = useI18n();
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const severityClass = (sev: string) =>
+    sev === "high"   ? "bg-rose-500/15 text-rose-300 border-rose-500/30" :
+    sev === "medium" ? "bg-amber-500/15 text-amber-300 border-amber-500/30" :
+                       "bg-slate-700/40 text-slate-300 border-slate-600/40";
+
+  const severityLabel = (sev: string) =>
+    sev === "high" ? t("detail.severityHigh") : sev === "medium" ? t("detail.severityMed") : t("detail.severityLow");
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto">
+        <div className="h-32 bg-slate-900/60 rounded-xl animate-pulse mb-6" />
+        <div className="grid grid-cols-3 gap-6">
+          <div className="col-span-2 h-96 bg-slate-900/60 rounded-xl animate-pulse" />
+          <div className="h-96 bg-slate-900/60 rounded-xl animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !account) {
+    return (
+      <div className="max-w-7xl mx-auto p-12 text-center text-rose-400 text-sm">
+        {error ?? "Account not found"}
+      </div>
+    );
+  }
+
+  const renewal = formatRenewal(account.contractRenewalDate, t as any);
+  const daysToRenewal = daysUntil(account.contractRenewalDate);
+  const seatsPct = account.seatsPurchased > 0
+    ? Math.round((account.seatsActive / account.seatsPurchased) * 100)
+    : 0;
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-6">
+      <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-200 transition-colors">
+        <svg {...SVG} width="14" height="14"><polyline points="15 18 9 12 15 6"/></svg>
+        {t("detail.backLabel")}
+      </Link>
+
+      {/* Hero header */}
+      <SurfaceCard weight="panel" tone="indigo" hoverLift={false} motionIndex={0} className="p-6">
+        <div className="flex items-start gap-4 mb-6">
+          <CompanyAvatar name={account.name} size="lg" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-2xl font-bold text-white tracking-tight">{account.name}</h1>
+              <RiskBadge status={account.health.status} />
+            </div>
+            <p className="text-sm text-slate-400">
+              {humanizeI18n(account.industry, t)} · {humanizeI18n(account.size, t)} · {humanizeI18n(account.geography, t)} · CSM <span className="text-slate-300">{account.csm.name}</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-6 pt-4 border-t border-slate-800">
+          <MetricBlock label={t("detail.labelArr")} value={formatArr(account.arrUsd)} sub={`Plan ${account.plan}`} />
+          <MetricBlock
+            label={t("detail.labelSeats")}
+            value={`${account.seatsActive} / ${account.seatsPurchased}`}
+            sub={`${seatsPct}% ${t("detail.labelSeatsActive")}`}
+          />
+          <MetricBlock label={t("detail.labelRenewal")} value={renewal.label} sub={new Date(account.contractRenewalDate).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })} />
+          <MetricBlock
+            label={t("detail.labelChampion")}
+            value={account.champion.name}
+            sub={account.champion.changedRecently ? t("detail.champChanged") : account.champion.role}
+          />
+          <MetricBlock
+            label={t("detail.labelQbr")}
+            value={account.lastQbrDate ? new Date(account.lastQbrDate).toLocaleDateString("es", { month: "short", year: "numeric" }) : "—"}
+            sub={account.lastQbrDate ? `${t("detail.labelMonthsAgo")} ${Math.floor((Date.now() - new Date(account.lastQbrDate).getTime()) / (1000*60*60*24*30))}` : undefined}
+          />
+        </div>
+      </SurfaceCard>
+
+      {/* Body */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <SurfaceCard weight="panel" tone="neutral" hoverLift={false} motionIndex={1} className="lg:col-span-2 p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-sm font-semibold text-white tracking-tight">{t("detail.activity")}</h2>
+            <span className="text-[11px] text-slate-500">{events.length} {t("detail.events")}</span>
+          </div>
+          <Timeline events={events} />
+        </SurfaceCard>
+
+        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+          {/* Crystal Ball */}
+          <SurfaceCard tone="rose" motionIndex={2} className="p-5 bg-[linear-gradient(155deg,rgba(190,18,60,0.08)_0%,rgba(10,12,18,0.92)_55%,rgba(6,8,14,0.96)_100%)]">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-7 h-7 rounded-md bg-rose-500/20 flex items-center justify-center">
+                <svg {...SVG} className="text-rose-300"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
+              </div>
+              <p className="text-[10px] uppercase tracking-widest font-semibold text-rose-300">
+                {t("detail.crystalBall")}
+              </p>
+            </div>
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="text-4xl font-bold tabular-nums text-rose-300">{account.health.churnRiskScore}</span>
+              <span className="text-sm text-slate-500">/ 100</span>
+            </div>
+            <ScoreBar score={account.health.churnRiskScore} variant="risk" />
+            <div className="mt-4 space-y-1.5">
+              {account.health.topSignals.map((s) => (
+                <div key={s.signal} className="flex items-center justify-between text-xs">
+                  <span className="text-slate-300">{humanizeI18n(s.signal, t)}</span>
+                  <span className={`px-1.5 py-0.5 rounded border text-[10px] font-semibold ${severityClass(s.severity)}`}>
+                    {severityLabel(s.severity)} · {s.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <details className="mt-4 group">
+              <summary className="cursor-pointer text-[11px] text-rose-300 hover:text-rose-200 font-medium select-none flex items-center gap-1">
+                <svg {...SVG} width="12" height="12" className="transition-transform group-open:rotate-90"><polyline points="9 18 15 12 9 6"/></svg>
+                {t("detail.seeReasoning")}
+              </summary>
+              <p className="text-xs text-slate-400 leading-relaxed mt-2.5 pl-3 border-l-2 border-rose-500/30">
+                {account.health.crystalBallReasoning}
+              </p>
+            </details>
+          </SurfaceCard>
+
+          {/* Expansion */}
+          <SurfaceCard tone="sky" motionIndex={3} className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-7 h-7 rounded-md bg-sky-500/20 flex items-center justify-center">
+                <svg {...SVG} className="text-sky-300"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              </div>
+              <p className="text-[10px] uppercase tracking-widest font-semibold text-sky-300">
+                {t("detail.expansion")}
+              </p>
+            </div>
+            <div className="flex items-baseline gap-2 mb-2">
+              <span className="text-2xl font-bold tabular-nums text-sky-300">{account.health.expansionScore}</span>
+              <span className="text-xs text-slate-500">/ 100</span>
+              {account.health.readyToExpand && (
+                <span className="ml-auto text-[10px] uppercase tracking-widest font-semibold text-sky-300 bg-sky-500/10 px-2 py-0.5 rounded">
+                  {t("detail.expandReady")}
+                </span>
+              )}
+            </div>
+            <ScoreBar score={account.health.expansionScore} variant="expansion" />
+            <p className="text-xs text-slate-400 mt-3 leading-relaxed">
+              {account.health.readyToExpand ? t("detail.expandYes") : t("detail.expandNo")}
+            </p>
+          </SurfaceCard>
+
+          {/* CTA */}
+          <button
+            onClick={() => setModalOpen(true)}
+            className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gradient-to-br from-rose-500 to-orange-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-500/20 hover:from-rose-400 hover:to-orange-400 hover:shadow-rose-500/40 transition-all"
+          >
+            <svg {...SVG} strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
+            {t("detail.ctaButton")}
+          </button>
+
+          <p className="text-[10px] text-center text-slate-500">
+            {daysToRenewal > 0
+              ? `${daysToRenewal} ${t("detail.renewalUrgent")}`
+              : t("detail.renewalExpired")}
+          </p>
+        </aside>
+      </div>
+
+      {modalOpen && (
+        <InterventionModal
+          accountId={account.id}
+          accountName={account.name}
+          champion={account.champion}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
