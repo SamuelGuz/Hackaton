@@ -37,6 +37,10 @@ class AccountListItem(BaseModel):
     current_nps_score: int | None = None
     current_nps_category: str | None = None
     last_nps_at: datetime | None = None
+    # Timestamp técnico de la fila en BD. Se expone para que el frontend pueda
+    # ordenar las cuentas con el mismo criterio que el batch agent
+    # (`backend.agents.batch_processor.submit_batch` usa `created_at desc`).
+    created_at: datetime | None = None
 
 
 class AccountsListResponse(BaseModel):

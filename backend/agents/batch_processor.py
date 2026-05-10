@@ -26,6 +26,7 @@ from backend.agents.intervention_engine import (
     CoolOffActive,
     run_intervention,
 )
+from backend.automations import make_webhooks
 from backend.shared.supabase_client import get_supabase
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,11 @@ StepName = Literal["crystal_ball", "expansion", "intervention"]
 AccountOverallStatus = Literal["queued", "running", "done", "failed"]
 BatchOverallStatus = Literal["queued", "running", "done", "partial", "failed"]
 
+# Resultado por canal del dispatch automático del batch. `skipped` cubre el caso
+# de cuenta sin contacto para ese canal (no es un error).
+ChannelDispatchStatus = Literal["sent", "failed", "skipped"]
+DispatchChannel = Literal["email", "whatsapp"]
+
 
 class AccountStepResult(BaseModel):
     step: StepName
@@ -50,6 +56,13 @@ class AccountStepResult(BaseModel):
     result_summary: dict | None = None
 
 
+class ChannelDispatchResult(BaseModel):
+    channel: DispatchChannel
+    status: ChannelDispatchStatus
+    recipient: str | None = None
+    error: str | None = None
+
+
 class AccountBatchResult(BaseModel):
     account_id: str
     account_name: str | None = None
@@ -58,6 +71,7 @@ class AccountBatchResult(BaseModel):
     finished_at: datetime | None = None
     steps: list[AccountStepResult]
     intervention_id: str | None = None
+    dispatch_results: list[ChannelDispatchResult] = []
 
 
 class BatchStatus(BaseModel):
@@ -188,6 +202,18 @@ def _set_intervention_id(batch_id: str, account_id: str, intervention_id: str | 
         _find_account(batch, account_id).intervention_id = intervention_id
 
 
+def _set_dispatch_results(
+    batch_id: str,
+    account_id: str,
+    results: list[ChannelDispatchResult],
+) -> None:
+    with _BATCHES_LOCK:
+        batch = _BATCHES.get(batch_id)
+        if batch is None:
+            return
+        _find_account(batch, account_id).dispatch_results = list(results)
+
+
 def _finalize_account(batch_id: str, account_id: str) -> None:
     with _BATCHES_LOCK:
         batch = _BATCHES.get(batch_id)
@@ -213,6 +239,129 @@ def _finalize_account(batch_id: str, account_id: str) -> None:
                 batch.overall_status = "failed"
             else:
                 batch.overall_status = "partial"
+
+
+# ---------------------------------------------------------------------------
+# Dispatch helpers (email + whatsapp best-effort)
+# ---------------------------------------------------------------------------
+
+
+def _load_account_row(account_id: str) -> dict | None:
+    sb = get_supabase()
+    res = (
+        sb.table("accounts")
+        .select(
+            "id, name, champion_name, champion_email, champion_phone"
+        )
+        .eq("id", account_id)
+        .limit(1)
+        .execute()
+    )
+    rows = getattr(res, "data", None) or []
+    return rows[0] if rows else None
+
+
+def _dispatch_account_channels(
+    intervention_id: str,
+    account: dict,
+) -> list[ChannelDispatchResult]:
+    """Despacha la intervención por email + WhatsApp en best-effort.
+
+    Cada canal falla/triunfa de forma independiente. Si el champion no tiene
+    contacto para un canal, ese canal queda en `skipped` (no es error). Al final
+    se actualiza el `status` de la fila `interventions` a `sent` (si al menos
+    uno OK) o `failed` (si todos fallaron). Si todos quedan `skipped` no se
+    toca el status para no ocultar el `pending` original.
+    """
+    sb = get_supabase()
+    inv_res = (
+        sb.table("interventions")
+        .select("id, message_body, message_subject")
+        .eq("id", intervention_id)
+        .limit(1)
+        .execute()
+    )
+    inv_rows = getattr(inv_res, "data", None) or []
+    inv = inv_rows[0] if inv_rows else {}
+    message_body = inv.get("message_body") or ""
+    message_subject = inv.get("message_subject") or "Un mensaje de tu CSM"
+
+    results: list[ChannelDispatchResult] = []
+
+    email = (account.get("champion_email") or "").strip()
+    if not email:
+        results.append(
+            ChannelDispatchResult(channel="email", status="skipped", error="no_recipient")
+        )
+    else:
+        try:
+            make_webhooks.send_email(
+                intervention_id=intervention_id,
+                to=email,
+                to_name=account.get("champion_name") or "",
+                subject=message_subject,
+                body=message_body,
+                account_id=str(account.get("id") or ""),
+                account_name=account.get("name") or "",
+            )
+            results.append(
+                ChannelDispatchResult(channel="email", status="sent", recipient=email)
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "batch dispatch email failed intervention=%s: %s", intervention_id, exc
+            )
+            results.append(
+                ChannelDispatchResult(
+                    channel="email", status="failed", recipient=email, error=str(exc)
+                )
+            )
+
+    phone = (account.get("champion_phone") or "").strip()
+    if not phone:
+        results.append(
+            ChannelDispatchResult(channel="whatsapp", status="skipped", error="no_recipient")
+        )
+    else:
+        try:
+            make_webhooks.send_whatsapp(
+                intervention_id=intervention_id,
+                to_phone=phone,
+                to_name=account.get("champion_name") or "",
+                message=message_body,
+                account_id=str(account.get("id") or ""),
+                account_name=account.get("name") or "",
+            )
+            results.append(
+                ChannelDispatchResult(channel="whatsapp", status="sent", recipient=phone)
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "batch dispatch whatsapp failed intervention=%s: %s", intervention_id, exc
+            )
+            results.append(
+                ChannelDispatchResult(
+                    channel="whatsapp", status="failed", recipient=phone, error=str(exc)
+                )
+            )
+
+    any_ok = any(r.status == "sent" for r in results)
+    any_attempted = any(r.status in ("sent", "failed") for r in results)
+    if any_attempted:
+        update: dict = {
+            "status": "sent" if any_ok else "failed",
+            "sent_at": _now().isoformat(),
+        }
+        try:
+            sb.table("interventions").update(update).eq("id", intervention_id).execute()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "batch dispatch status update failed intervention=%s: %s",
+                intervention_id,
+                exc,
+            )
+
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -276,6 +425,7 @@ def _process_account(
     # ----- Intervention -----
     _mark_step_running(batch_id, account_id, "intervention")
     logger.info("batch=%s account=%s step=intervention running", batch_id, account_id)
+    intervention_created_id: str | None = None
     try:
         iv_out = run_intervention(account_id, trigger_reason)
         summary = {
@@ -287,6 +437,7 @@ def _process_account(
         }
         _mark_step_done(batch_id, account_id, "intervention", summary)
         _set_intervention_id(batch_id, account_id, iv_out.intervention_id)
+        intervention_created_id = iv_out.intervention_id
         logger.info(
             "batch=%s account=%s step=intervention done id=%s",
             batch_id,
@@ -313,6 +464,38 @@ def _process_account(
         logger.exception(
             "batch=%s account=%s step=intervention failed", batch_id, account_id
         )
+
+    # ----- Dispatch (email + whatsapp) -----
+    # Solo si la intervención se creó OK (no skipped por cool-off, no failed).
+    if intervention_created_id:
+        try:
+            account_row = _load_account_row(account_id) or {}
+            results = _dispatch_account_channels(intervention_created_id, account_row)
+            _set_dispatch_results(batch_id, account_id, results)
+            logger.info(
+                "batch=%s account=%s dispatch results=%s",
+                batch_id,
+                account_id,
+                [
+                    f"{r.channel}:{r.status}" for r in results
+                ],
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "batch=%s account=%s dispatch unexpected error", batch_id, account_id
+            )
+            _set_dispatch_results(
+                batch_id,
+                account_id,
+                [
+                    ChannelDispatchResult(
+                        channel="email", status="failed", error=f"{type(exc).__name__}: {exc}"
+                    ),
+                    ChannelDispatchResult(
+                        channel="whatsapp", status="failed", error=f"{type(exc).__name__}: {exc}"
+                    ),
+                ],
+            )
 
     _finalize_account(batch_id, account_id)
     logger.info("batch=%s account=%s pipeline finished", batch_id, account_id)

@@ -94,7 +94,15 @@ export function useAccounts(
           (a.accountNumber ?? "").toLowerCase().includes(q)
       );
     }
-    return [...list].sort((a, b) => b.churnRiskScore - a.churnRiskScore);
+    // Orden alineado con el batch agent: `created_at desc` (las más nuevas
+    // primero). Si dos cuentas comparten timestamp (importes en batch),
+    // desempata por churnRiskScore desc para mantener visible el riesgo alto.
+    return [...list].sort((a, b) => {
+      const ta = a.createdAt ? Date.parse(a.createdAt) : 0;
+      const tb = b.createdAt ? Date.parse(b.createdAt) : 0;
+      if (tb !== ta) return tb - ta;
+      return b.churnRiskScore - a.churnRiskScore;
+    });
   }, [all, filter, search, accountNumber]);
 
   const accountNumbers = useMemo(() => {

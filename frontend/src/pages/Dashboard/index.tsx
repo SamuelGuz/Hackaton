@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAccounts } from "../../hooks/useAccounts";
+import { useBatchAgents } from "../../hooks/useBatchAgents";
 import { useI18n } from "../../context/I18nContext";
-import { runAllInterventions } from "../../api/agents";
+import { BatchProgressPanel } from "../../components/BatchProgressPanel";
 import { useToast } from "../../components/Toast";
 import { RiskBadge } from "../../components/RiskBadge";
 import { CompanyAvatar } from "../../components/CompanyAvatar";
@@ -71,27 +72,57 @@ export default function Dashboard() {
   const [accountNumberFilter, setAccountNumberFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [exportOpen, setExportOpen] = useState(false);
-  const [runningAll, setRunningAll] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
+  const batch = useBatchAgents();
+  const runningAll = batch.isRunning;
+
+  const { accounts, accountNumbers, stats, loading, error, lastFetchedAt, refetch } =
+    useAccounts(activeFilter, search, accountNumberFilter);
 
   async function handleRunAll() {
     setConfirmOpen(false);
-    setRunningAll(true);
-    try {
-      const result = await runAllInterventions();
-      toast.push(
-        t("inv.runAllDone", { triggered: result.triggered, skipped: result.skipped }),
-        result.errors.length > 0 ? "warning" : "success"
-      );
-    } catch {
-      toast.push(t("inv.runAllError"), "error");
-    } finally {
-      setRunningAll(false);
-    }
+    setPanelOpen(true);
+    // El hook reporta errores via `batch.error`; el effect que mira
+    // overall_status se encarga del toast y refetch al terminar.
+    await batch.start(5, "manual_dashboard_trigger");
   }
-  const { accounts, accountNumbers, stats, loading, error, lastFetchedAt, refetch } =
-    useAccounts(activeFilter, search, accountNumberFilter);
+
+  // Al terminar el batch: refresca cuentas (snapshots e intervenciones cambiaron)
+  // y dispara un toast resumen. Disparamos una sola vez por `batchId` para que
+  // re-renders posteriores (cerrar/abrir el panel) no clonen toasts.
+  const finalToastIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const overall = batch.status?.overallStatus;
+    const batchId = batch.status?.batchId;
+    if (!overall || !batchId) return;
+    if (overall !== "done" && overall !== "partial" && overall !== "failed") return;
+    if (finalToastIdRef.current === batchId) return;
+    finalToastIdRef.current = batchId;
+
+    const accounts = batch.status?.accounts ?? [];
+    const done = accounts.filter((a) => a.overallStatus === "done").length;
+    const failed = accounts.filter((a) => a.overallStatus === "failed").length;
+    const total = accounts.length;
+
+    if (overall === "done") {
+      toast.push(t("inv.batchToast.done", { done, total }), "success");
+    } else if (overall === "partial") {
+      toast.push(t("inv.batchToast.partial", { done, failed }), "warning");
+    } else {
+      toast.push(t("inv.batchToast.failed"), "error");
+    }
+    refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batch.status?.overallStatus, batch.status?.batchId]);
+
+  // Error de submit (no llegamos ni al primer poll): toast + cerrar panel.
+  useEffect(() => {
+    if (!batch.error) return;
+    toast.push(t("inv.runAllError"), "error");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batch.error]);
 
   // Al cambiar el estado de salud, el select de Nº cuenta debe partir en “todas” (lista nueva viene de otra query).
   useEffect(() => {
@@ -342,6 +373,19 @@ export default function Dashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Batch progress panel */}
+      {panelOpen && (
+        <BatchProgressPanel
+          status={batch.status}
+          isRunning={batch.isRunning}
+          error={batch.error}
+          onClose={() => {
+            setPanelOpen(false);
+            batch.reset();
+          }}
+        />
+      )}
 
       {/* Table */}
       <SurfaceCard weight="panel" tone="neutral" surface="data" hoverLift={false} motionIndex={4} className="overflow-hidden">

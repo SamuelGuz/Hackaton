@@ -1,9 +1,8 @@
-import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { useI18n } from "../context/I18nContext";
 import { RiskBadge } from "./RiskBadge";
-import { Sparkline } from "./Sparkline";
 import { SkeletonRow } from "./Skeleton";
+import { HealthHistoryCharts } from "./HealthHistoryCharts";
 import type { AccountHealthHistoryItem } from "../types";
 
 const SVG = {
@@ -103,16 +102,6 @@ export function HealthHistoryTable({
 }) {
   const { t } = useI18n();
 
-  // Items vienen ordenados desc (más reciente primero). Para deltas comparamos
-  // con la siguiente entrada (la previa cronológicamente).
-  const churnSeries = useMemo(
-    () => [...items].reverse().map((i) => i.churnRiskScore),
-    [items]
-  );
-  const expansionSeries = useMemo(
-    () => [...items].reverse().map((i) => i.expansionScore),
-    [items]
-  );
 
   if (error) {
     return (
@@ -129,40 +118,10 @@ export function HealthHistoryTable({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header summary with sparklines */}
+    <div className="space-y-5">
+      {/* Gráficas grandes */}
       {!loading && items.length >= 2 && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-          className="grid grid-cols-2 gap-3"
-        >
-          <div className="flex items-center justify-between rounded-lg border border-rose-500/20 bg-rose-500/[0.04] px-3 py-2">
-            <div>
-              <p className="text-[10px] uppercase tracking-widest font-semibold text-rose-300/90">
-                {t("history.trendChurn")}
-              </p>
-              <p className="text-lg font-semibold text-rose-200 tabular-nums leading-tight mt-0.5">
-                {items[0].churnRiskScore}
-                <span className="text-[11px] text-slate-500 ml-1">/ 100</span>
-              </p>
-            </div>
-            <Sparkline series={churnSeries} stroke="rgba(251, 113, 133, 0.7)" />
-          </div>
-          <div className="flex items-center justify-between rounded-lg border border-sky-500/20 bg-sky-500/[0.04] px-3 py-2">
-            <div>
-              <p className="text-[10px] uppercase tracking-widest font-semibold text-sky-300/90">
-                {t("history.trendExpansion")}
-              </p>
-              <p className="text-lg font-semibold text-sky-200 tabular-nums leading-tight mt-0.5">
-                {items[0].expansionScore}
-                <span className="text-[11px] text-slate-500 ml-1">/ 100</span>
-              </p>
-            </div>
-            <Sparkline series={expansionSeries} stroke="rgba(125, 211, 252, 0.7)" />
-          </div>
-        </motion.div>
+        <HealthHistoryCharts items={items} />
       )}
 
       <div className="overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/40">

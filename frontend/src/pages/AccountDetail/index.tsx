@@ -169,8 +169,8 @@ export default function AccountDetail() {
       </SurfaceCard>
 
       {/* Body */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <SurfaceCard weight="panel" tone="neutral" hoverLift={false} motionIndex={1} className="lg:col-span-2 p-6">
+      <div className={`grid grid-cols-1 gap-6 transition-all duration-500 ${activeTab === "history" ? "" : "lg:grid-cols-3"}`}>
+        <SurfaceCard weight="panel" tone="neutral" hoverLift={false} motionIndex={1} className={`p-6 ${activeTab === "history" ? "" : "lg:col-span-2"}`}>
           <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
             <div role="tablist" aria-label="Account detail sections" className="relative inline-flex p-0.5 bg-slate-900/60 border border-slate-800/80 rounded-lg">
               {(["activity", "history"] as const).map((tab) => {
@@ -237,7 +237,15 @@ export default function AccountDetail() {
           </AnimatePresence>
         </SurfaceCard>
 
-        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+        <AnimatePresence>
+        {activeTab !== "history" && (
+        <motion.aside
+          key="aside-panel"
+          initial={{ opacity: 0, x: 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 24, transition: { duration: 0.2 } }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           {voiceSession && (
             <VoiceCallPanel
               interventionId={voiceSession.interventionId}
@@ -364,7 +372,9 @@ export default function AccountDetail() {
               </p>
             </>
           )}
-        </aside>
+        </motion.aside>
+        )}
+        </AnimatePresence>
       </div>
 
       {modalOpen && (

@@ -15,12 +15,38 @@ const TRANSLATIONS = {
 
   // Interventions page
   "inv.runAll":              { es: "Ejecutar en todas las cuentas", en: "Run on all accounts" },
-  "inv.runAllConfirm":       { es: "¿Ejecutar el agente en todas las cuentas? Se omitirán las que ya tengan una intervención activa.", en: "Run the agent on all accounts? Accounts with an active intervention will be skipped." },
+  "inv.runAllConfirm":       { es: "¿Ejecutar el agente en las 5 cuentas más recientes? Se omitirán las que estén en cool-off.", en: "Run the agent on the 5 most recent accounts? Accounts in cool-off will be skipped." },
   "inv.runAllRunning":       { es: "Ejecutando…",                 en: "Running…" },
   "inv.runAllCancel":        { es: "Cancelar",                    en: "Cancel" },
   "inv.runAllConfirmBtn":    { es: "Ejecutar",                    en: "Run" },
   "inv.runAllDone":          { es: "{triggered} disparadas · {skipped} omitidas", en: "{triggered} triggered · {skipped} skipped" },
   "inv.runAllError":         { es: "Error al ejecutar el agente", en: "Error running agent" },
+
+  // Batch agent (POST /agents/batch-process)
+  "inv.batchPanelTitle":           { es: "Procesamiento por lotes",        en: "Batch processing" },
+  "inv.batchStep.crystal_ball":    { es: "Análisis de churn",              en: "Churn analysis" },
+  "inv.batchStep.expansion":       { es: "Expansión",                      en: "Expansion" },
+  "inv.batchStep.intervention":    { es: "Intervención",                   en: "Intervention" },
+  "inv.batchOverall.queued":       { es: "En cola",                        en: "Queued" },
+  "inv.batchOverall.running":      { es: "En curso",                       en: "Running" },
+  "inv.batchOverall.done":         { es: "Completado",                     en: "Completed" },
+  "inv.batchOverall.partial":      { es: "Completado con errores",         en: "Completed with errors" },
+  "inv.batchOverall.failed":       { es: "Falló",                          en: "Failed" },
+  "inv.batchSummary":              { es: "{done} completadas · {failed} con error · {skipped} omitidas (cool-off)", en: "{done} completed · {failed} failed · {skipped} skipped (cool-off)" },
+  "inv.batchClose":                { es: "Cerrar",                         en: "Close" },
+  "inv.batchInProgress":           { es: "No se puede cerrar mientras corre", en: "Can't close while running" },
+  "inv.batchToast.done":           { es: "Batch completado: {done}/{total} cuentas", en: "Batch completed: {done}/{total} accounts" },
+  "inv.batchToast.partial":        { es: "Batch terminado con errores: {done} OK · {failed} con error", en: "Batch finished with errors: {done} OK · {failed} failed" },
+  "inv.batchToast.failed":         { es: "Batch falló: revisá el panel",   en: "Batch failed: see panel" },
+
+  // Batch dispatch chips por cuenta (email + WhatsApp tras crear la intervención)
+  "inv.batchChannel.email":        { es: "Email",                          en: "Email" },
+  "inv.batchChannel.whatsapp":     { es: "WhatsApp",                       en: "WhatsApp" },
+  "inv.batchDispatch.sent":        { es: "Enviado",                        en: "Sent" },
+  "inv.batchDispatch.failed":      { es: "Falló",                          en: "Failed" },
+  "inv.batchDispatch.skipped":     { es: "Sin contacto",                   en: "No contact" },
+  "inv.batchDispatch.tooltipError":{ es: "Error: {error}",                 en: "Error: {error}" },
+
   "inv.badge":               { es: "Agente activo",                         en: "Agent active" },
   "inv.title":               { es: "Intervenciones",                        en: "Interventions" },
   "inv.subtitle":            { es: "Historial de acciones lanzadas por el agente de intervención", en: "History of actions launched by the intervention agent" },
@@ -197,6 +223,10 @@ const TRANSLATIONS = {
   "history.colExpansion":   { es: "Expansion",                 en: "Expansion" },
   "history.colConfidence":  { es: "Confianza",                 en: "Confidence" },
   "history.colVersion":     { es: "Versión",                   en: "Version" },
+  "history.chartBoth":      { es: "Ambos",                     en: "Both" },
+  "history.chartChurn":     { es: "Churn",                     en: "Churn" },
+  "history.chartExpansion": { es: "Expansión",                 en: "Expansion" },
+  "history.chartDateAxis":  { es: "guiado por día",            en: "guided by day" },
 
   // Timeline event types
   "timeline.ticket":       { es: "Ticket",    en: "Ticket" },

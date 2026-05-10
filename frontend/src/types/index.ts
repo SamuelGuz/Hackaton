@@ -76,6 +76,9 @@ export interface AccountSummary {
   currentNpsScore?: number | null;
   currentNpsCategory?: "detractor" | "passive" | "promoter" | null;
   lastNpsAt?: string | null;
+  // Timestamp técnico de la fila en BD (ISO UTC). Usado para ordenar la lista
+  // del dashboard alineada con el batch agent (que procesa `created_at desc`).
+  createdAt?: string | null;
   // Campos extra que solo viven cuando el usuario importa un Excel
   geography?: string;
   seatsPurchased?: number;
