@@ -1,0 +1,39 @@
+[
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "⚠️  *Aprobación requerida — {{1.account_name}}*\n  • *ARR:* ${{1.account_arr}} | *Industria:* {{1.account_industry}} | *Plan:*\n  {{1.account_plan}}\n  • *Canal:* {{1.channel}} | *Confianza:* {{1.confidence}}\n  • *Motivo:* {{1.trigger_reason}}\n  • *Aprobación:* {{1.approval_reasoning}}"
+    }
+  },
+  {
+    "type": "actions",
+    "block_id": "approval_actions",
+    "elements": [
+      {
+        "type": "button",
+        "text": {
+          "type": "plain_text",
+          "text": "Aprobar",
+          "emoji": true
+        },
+        "style": "primary",
+        "value": "approve",
+        "action_id": "approve",
+        "url": "https://backend.dark-army.lat/api/v1/dispatch-intervention/approve?intervention_id={{1.intervention_id}}&action=approve"
+      },
+      {
+        "type": "button",
+        "text": {
+          "type": "plain_text",
+          "text": "Rechazar",
+          "emoji": true
+        },
+        "style": "danger",
+        "value": "reject",
+        "action_id": "reject",
+        "url": "https://backend.dark-army.lat/api/v1/dispatch-intervention/approve?intervention_id={{1.intervention_id}}&action=reject"
+      }
+    ]
+  }
+]

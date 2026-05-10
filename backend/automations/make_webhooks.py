@@ -1,15 +1,38 @@
-"""Make.com webhook dispatcher per CONTRACTS.md §3."""
+"""Make.com webhook dispatcher per CONTRACTS.md section 3."""
 
 from __future__ import annotations
 
 import logging
 import os
 from typing import Any
+
 import httpx
 
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_SECS = 10.0
+
+
+def slack_approval_notice_markdown(
+    *,
+    account_name: str,
+    account_arr: float,
+    account_industry: str,
+    account_plan: str,
+    channel: str,
+    confidence: float,
+    trigger_reason: str,
+    approval_reasoning: str,
+) -> str:
+    """Markdown for Slack approval card (mensaje antes de los bloques de botones)."""
+    arr_disp = f"${account_arr:,.0f}"
+    return (
+        f"⚠️  *Aprobación requerida — {account_name}*\n"
+        f"  • *ARR:* {arr_disp} | *Industria:* {account_industry} | *Plan:* {account_plan}\n"
+        f"  • *Canal:* {channel} | *Confianza:* {confidence:.2f}\n"
+        f"  • *Motivo:* {trigger_reason}\n"
+        f"  • *Aprobación:* {approval_reasoning}"
+    )
 
 
 def _post(url: str, payload: dict[str, Any], label: str) -> tuple[bool, str | None]:
@@ -73,6 +96,16 @@ def send_slack(
     account_industry: str,
     account_plan: str,
 ) -> dict[str, Any]:
+    notice = slack_approval_notice_markdown(
+        account_name=account_name,
+        account_arr=account_arr,
+        account_industry=account_industry,
+        account_plan=account_plan,
+        channel=channel,
+        confidence=confidence,
+        trigger_reason=trigger_reason,
+        approval_reasoning=approval_reasoning,
+    )
     return _legacy_post(
         os.environ["MAKE_WEBHOOK_SLACK"],
         {
@@ -92,6 +125,7 @@ def send_slack(
             "account_arr": account_arr,
             "account_industry": account_industry,
             "account_plan": account_plan,
+            "slack_message_markdown": notice,
         },
     )
 
@@ -99,20 +133,20 @@ def send_slack(
 def send_whatsapp(
     intervention_id: str,
     to_phone: str,
-    nombre_cliente: str,
-    nombre_empresa: str,
-    motivo_alerta: str,
-    callback_url: str,
+    to_name: str,
+    message: str,
+    account_id: str,
+    account_name: str,
 ) -> dict[str, Any]:
     return _legacy_post(
         os.environ["MAKE_WEBHOOK_WHATSAPP"],
         {
             "intervention_id": intervention_id,
             "to_phone": to_phone,
-            "nombre_cliente": nombre_cliente,
-            "nombre_empresa": nombre_empresa,
-            "motivo_alerta": motivo_alerta,
-            "callback_url": callback_url,
+            "to_name": to_name,
+            "message": message,
+            "account_id": account_id,
+            "account_name": account_name,
         },
     )
 

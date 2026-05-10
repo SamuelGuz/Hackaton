@@ -143,10 +143,10 @@ def dispatch_intervention(body: DispatchRequest):
             make_webhooks.send_whatsapp(
                 intervention_id=body.intervention_id,
                 to_phone=body.recipient,
-                nombre_cliente=body.nombre_cliente or "",
-                nombre_empresa=body.nombre_empresa or "",
-                motivo_alerta=body.motivo_alerta or body.message_body,
-                callback_url=callback,
+                to_name=body.to_name or "",
+                message=body.message_body,
+                account_id=body.account_id or "",
+                account_name=body.account_name or "",
             )
 
         elif body.channel == "voice_call":

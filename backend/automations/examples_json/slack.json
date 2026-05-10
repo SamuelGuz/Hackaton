@@ -1,18 +1,19 @@
-{                                                             
-  "intervention_id": "uuid",                                  
-  "account_id": "uuid",                                       
-  "account_name": "Acme Corp",                                
-  "status": "pending_approval",                               
-  "auto_approved": false,                                     
-  "channel": "email",                                     
-  "recipient": "pamela40@teran.com",                          
+{
+  "intervention_id": "uuid",
+  "account_id": "uuid",
+  "account_name": "Acme Corp",
+  "status": "pending_approval",
+  "auto_approved": false,
+  "channel": "email",
+  "recipient": "pamela40@teran.com",
   "trigger_reason": "churn_risk_high",
-  "confidence": 0.85,                                         
-  "playbook_id": "692f2c29-3b8e-511a-8810-dbc82d4b1eb4",  
-  "playbook_success_rate": 0.73,                              
+  "confidence": 0.85,
+  "playbook_id": "692f2c29-3b8e-511a-8810-dbc82d4b1eb4",
+  "playbook_success_rate": 0.73,
   "approval_reasoning": "ARR $29,795 above $25,000 threshold",
-  "agent_reasoning": "Account showing high churn risk...",    
-  "account_arr": 29795,                                       
-  "account_industry": "fintech",                              
-  "account_plan": "growth"                                    
-} 
+  "agent_reasoning": "Account showing high churn risk...",
+  "account_arr": 29795,
+  "account_industry": "fintech",
+  "account_plan": "growth",
+  "slack_message_markdown": "⚠️  *Aprobación requerida — Acme Corp*\n  • *ARR:* $29,795 | *Industria:* fintech | *Plan:* growth\n  • *Canal:* email | *Confianza:* 0.85\n  • *Motivo:* churn_risk_high\n  • *Aprobación:* ARR $29,795 above $25,000 threshold"
+}
