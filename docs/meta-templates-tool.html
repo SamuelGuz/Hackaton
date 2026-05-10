@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meta WhatsApp - Plantillas</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #141a2f;
+      --panel-2: #1c2440;
+      --text: #ebefff;
+      --muted: #9aa7cc;
+      --ok: #32d583;
+      --warn: #fdb022;
+      --bad: #f97066;
+      --line: #2a345c;
+      --accent: #7aa2ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #0b1020 0%, #0e1630 100%);
+      color: var(--text);
+      font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 24px auto;
+      padding: 0 16px 24px;
+    }
+
+    .title {
+      margin: 0 0 6px;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+
+    .subtitle {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .grid.cols-2 {
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input, select, textarea, button {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel-2);
+      color: var(--text);
+      font-size: 14px;
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    textarea { min-height: 84px; resize: vertical; }
+
+    button {
+      cursor: pointer;
+      background: #24325d;
+      transition: transform 0.06s ease, background 0.2s ease;
+      font-weight: 600;
+    }
+
+    button:hover { background: #2b3d71; }
+    button:active { transform: scale(0.99); }
+    button.secondary { background: #1e2848; }
+    button.accent { background: #2b4aa0; }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .row > * { flex: 1; min-width: 180px; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      background: #121a33;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .stat .k {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .stat .v {
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .log {
+      margin-top: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #0f1428;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      max-height: 200px;
+      overflow: auto;
+      white-space: pre-wrap;
+      font-size: 12px;
+      color: #c9d4ff;
+    }
+
+    details > summary {
+      cursor: pointer;
+      color: var(--muted);
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 class="title">Meta WhatsApp - Plantillas</h1>
+    <p class="subtitle">Lista plantillas, revisa aprobaciones y envia mensajes de plantilla desde una sola pagina.</p>
+
+    <div class="card">
+      <h2>1) Credenciales</h2>
+      <div class="grid cols-2">
+        <div>
+          <label for="token">META_ACCESS_TOKEN</label>
+          <input id="token" placeholder="EAAG..." type="password" />
+        </div>
+        <div>
+          <label for="wabaId">META_WABA_ID</label>
+          <input id="wabaId" placeholder="123456789012345" />
+        </div>
+        <div>
+          <label for="phoneId">META_PHONE_NUMBER_ID</label>
+          <input id="phoneId" placeholder="109876543210987" />
+        </div>
+        <div>
+          <label for="apiVersion">META_GRAPH_API_VERSION</label>
+          <input id="apiVersion" value="v22.0" />
+        </div>
+      </div>
+      <div class="row" style="margin-top: 10px;">
+        <button id="saveCredsBtn" class="secondary">Guardar en navegador</button>
+        <button id="clearCredsBtn" class="secondary">Borrar credenciales locales</button>
+      </div>
+      <p class="hint">Se guardan solo en tu navegador (localStorage). No se suben a ningun servidor propio.</p>
+    </div>
+
+    <div class="card">
+      <h2>2) Ver plantillas y estado</h2>
+      <div class="row">
+        <button id="loadTemplatesBtn" class="accent">Cargar plantillas</button>
+        <select id="statusFilter">
+          <option value="ALL">Filtrar: todas</option>
+          <option value="APPROVED">Solo APPROVED</option>
+          <option value="PENDING">Solo PENDING</option>
+          <option value="REJECTED">Solo REJECTED</option>
+          <option value="PAUSED">Solo PAUSED</option>
+          <option value="DISABLED">Solo DISABLED</option>
+        </select>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="k">Total</div><div id="totalCount" class="v">0</div></div>
+        <div class="stat"><div class="k">Aprobadas</div><div id="approvedCount" class="v ok">0</div></div>
+        <div class="stat"><div class="k">Pendientes</div><div id="pendingCount" class="v warn">0</div></div>
+        <div class="stat"><div class="k">Rechazadas</div><div id="rejectedCount" class="v bad">0</div></div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Estado</th>
+            <th>Categoria</th>
+            <th>Idioma</th>
+            <th>Calidad</th>
+          </tr>
+        </thead>
+        <tbody id="templatesTbody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>3) Crear nueva plantilla</h2>
+      <div class="grid cols-2">
+        <div>
+          <label for="newTemplateName">Nombre</label>
+          <input id="newTemplateName" placeholder="recordatorio_cita" />
+        </div>
+        <div>
+          <label for="newTemplateCategory">Categoria</label>
+          <select id="newTemplateCategory">
+            <option value="UTILITY">UTILITY</option>
+            <option value="MARKETING">MARKETING</option>
+            <option value="AUTHENTICATION">AUTHENTICATION</option>
+          </select>
+        </div>
+        <div>
+          <label for="newTemplateLang">Idioma (locale)</label>
+          <input id="newTemplateLang" value="es_MX" />
+        </div>
+        <div></div>
+      </div>
+      <label for="newTemplateBody" style="margin-top: 10px;">Texto BODY</label>
+      <textarea id="newTemplateBody" placeholder="Hola {{1}}, tu cita es el {{2}} a las {{3}}."></textarea>
+      <label for="newTemplateFooter" style="margin-top: 10px;">Texto FOOTER (opcional)</label>
+      <input id="newTemplateFooter" placeholder="Responde ALTA para darte de baja" />
+      <div class="row" style="margin-top: 10px;">
+        <button id="createTemplateBtn">Crear plantilla en Meta</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>4) Enviar una plantilla</h2>
+      <div class="grid cols-2">
+        <div>
+          <label for="toPhone">Numero destino (E.164)</label>
+          <input id="toPhone" placeholder="5215512345678" />
+        </div>
+        <div>
+          <label for="sendTemplateName">Nombre plantilla</label>
+          <input id="sendTemplateName" placeholder="recordatorio_cita" />
+        </div>
+        <div>
+          <label for="sendTemplateLang">Idioma</label>
+          <input id="sendTemplateLang" value="es_MX" />
+        </div>
+        <div>
+          <label for="bodyParams">Parametros BODY (coma separada)</label>
+          <input id="bodyParams" placeholder="Carlos, 12/05, 10:30" />
+        </div>
+      </div>
+      <div class="row" style="margin-top: 10px;">
+        <button id="sendTemplateBtn">Enviar plantilla</button>
+      </div>
+      <p class="hint">Ejemplo: si tu BODY tiene {{1}} {{2}}, escribe dos valores separados por coma.</p>
+    </div>
+
+    <div class="card">
+      <h2>Log</h2>
+      <div id="log" class="log"></div>
+    </div>
+  </div>
+
+  <script>
+    const els = {
+      token: document.getElementById("token"),
+      wabaId: document.getElementById("wabaId"),
+      phoneId: document.getElementById("phoneId"),
+      apiVersion: document.getElementById("apiVersion"),
+      saveCredsBtn: document.getElementById("saveCredsBtn"),
+      clearCredsBtn: document.getElementById("clearCredsBtn"),
+      loadTemplatesBtn: document.getElementById("loadTemplatesBtn"),
+      statusFilter: document.getElementById("statusFilter"),
+      templatesTbody: document.getElementById("templatesTbody"),
+      totalCount: document.getElementById("totalCount"),
+      approvedCount: document.getElementById("approvedCount"),
+      pendingCount: document.getElementById("pendingCount"),
+      rejectedCount: document.getElementById("rejectedCount"),
+      newTemplateName: document.getElementById("newTemplateName"),
+      newTemplateCategory: document.getElementById("newTemplateCategory"),
+      newTemplateLang: document.getElementById("newTemplateLang"),
+      newTemplateBody: document.getElementById("newTemplateBody"),
+      newTemplateFooter: document.getElementById("newTemplateFooter"),
+      createTemplateBtn: document.getElementById("createTemplateBtn"),
+      toPhone: document.getElementById("toPhone"),
+      sendTemplateName: document.getElementById("sendTemplateName"),
+      sendTemplateLang: document.getElementById("sendTemplateLang"),
+      bodyParams: document.getElementById("bodyParams"),
+      sendTemplateBtn: document.getElementById("sendTemplateBtn"),
+      log: document.getElementById("log")
+    };
+
+    let allTemplates = [];
+
+    function log(msg, data) {
+      const ts = new Date().toLocaleTimeString();
+      const line = `[${ts}] ${msg}`;
+      const text = data ? `${line}\n${JSON.stringify(data, null, 2)}\n` : `${line}\n`;
+      els.log.textContent = text + els.log.textContent;
+    }
+
+    function getCreds() {
+      const token = els.token.value.trim();
+      const wabaId = els.wabaId.value.trim();
+      const phoneId = els.phoneId.value.trim();
+      const apiVersion = (els.apiVersion.value.trim() || "v22.0").replace(/^v/i, "v");
+
+      if (!token || !wabaId || !phoneId) {
+        throw new Error("Faltan credenciales: token, WABA ID o Phone Number ID.");
+      }
+
+      return { token, wabaId, phoneId, apiVersion };
+    }
+
+    function loadCredsFromStorage() {
+      const raw = localStorage.getItem("meta_whatsapp_creds");
+      if (!raw) return;
+      try {
+        const c = JSON.parse(raw);
+        els.token.value = c.token || "";
+        els.wabaId.value = c.wabaId || "";
+        els.phoneId.value = c.phoneId || "";
+        els.apiVersion.value = c.apiVersion || "v22.0";
+      } catch (_) {}
+    }
+
+    function saveCredsToStorage() {
+      const data = {
+        token: els.token.value.trim(),
+        wabaId: els.wabaId.value.trim(),
+        phoneId: els.phoneId.value.trim(),
+        apiVersion: els.apiVersion.value.trim() || "v22.0"
+      };
+      localStorage.setItem("meta_whatsapp_creds", JSON.stringify(data));
+      log("Credenciales guardadas en localStorage.");
+    }
+
+    function clearCreds() {
+      localStorage.removeItem("meta_whatsapp_creds");
+      els.token.value = "";
+      els.wabaId.value = "";
+      els.phoneId.value = "";
+      els.apiVersion.value = "v22.0";
+      log("Credenciales locales borradas.");
+    }
+
+    function statusClass(status) {
+      if (status === "APPROVED") return "ok";
+      if (status === "PENDING") return "warn";
+      if (status === "REJECTED" || status === "DISABLED") return "bad";
+      return "";
+    }
+
+    function renderTemplates() {
+      const filter = els.statusFilter.value;
+      const list = filter === "ALL" ? allTemplates : allTemplates.filter((t) => t.status === filter);
+
+      els.templatesTbody.innerHTML = "";
+      if (!list.length) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="5" style="color: var(--muted);">Sin resultados para el filtro actual.</td>`;
+        els.templatesTbody.appendChild(tr);
+        return;
+      }
+
+      for (const t of list) {
+        const tr = document.createElement("tr");
+        const quality = t.quality_score && t.quality_score.score ? t.quality_score.score : "-";
+        tr.innerHTML = `
+          <td>${t.name || "-"}</td>
+          <td><span class="pill ${statusClass(t.status)}">${t.status || "-"}</span></td>
+          <td>${t.category || "-"}</td>
+          <td>${t.language || "-"}</td>
+          <td>${quality}</td>
+        `;
+        els.templatesTbody.appendChild(tr);
+      }
+    }
+
+    function updateStats() {
+      const c = {
+        total: allTemplates.length,
+        approved: allTemplates.filter((t) => t.status === "APPROVED").length,
+        pending: allTemplates.filter((t) => t.status === "PENDING").length,
+        rejected: allTemplates.filter((t) => t.status === "REJECTED").length
+      };
+      els.totalCount.textContent = c.total;
+      els.approvedCount.textContent = c.approved;
+      els.pendingCount.textContent = c.pending;
+      els.rejectedCount.textContent = c.rejected;
+    }
+
+    async function graphFetch(path, token, options = {}) {
+      const res = await fetch(path, {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          ...(options.headers || {})
+        }
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        const msg = data?.error?.message || `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+      return data;
+    }
+
+    async function loadTemplates() {
+      const { token, wabaId, apiVersion } = getCreds();
+      log("Cargando plantillas...");
+      const url = `https://graph.facebook.com/${apiVersion}/${wabaId}/message_templates?fields=name,status,category,language,quality_score&limit=200`;
+      const data = await graphFetch(url, token);
+      allTemplates = data.data || [];
+      updateStats();
+      renderTemplates();
+      log(`Plantillas cargadas: ${allTemplates.length}`);
+    }
+
+    async function createTemplate() {
+      const { token, wabaId, apiVersion } = getCreds();
+      const name = els.newTemplateName.value.trim();
+      const category = els.newTemplateCategory.value;
+      const language = els.newTemplateLang.value.trim() || "es_MX";
+      const bodyText = els.newTemplateBody.value.trim();
+      const footerText = els.newTemplateFooter.value.trim();
+
+      if (!name || !bodyText) {
+        throw new Error("Nombre y BODY son obligatorios para crear la plantilla.");
+      }
+
+      const components = [{ type: "BODY", text: bodyText }];
+      if (footerText) components.push({ type: "FOOTER", text: footerText });
+
+      const payload = { name, category, language, components };
+      const url = `https://graph.facebook.com/${apiVersion}/${wabaId}/message_templates`;
+      const data = await graphFetch(url, token, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      log("Plantilla enviada a revision/creada.", data);
+      await loadTemplates();
+    }
+
+    async function sendTemplate() {
+      const { token, phoneId, apiVersion } = getCreds();
+      const to = els.toPhone.value.trim();
+      const name = els.sendTemplateName.value.trim();
+      const language = els.sendTemplateLang.value.trim() || "es_MX";
+      const paramsRaw = els.bodyParams.value.trim();
+
+      if (!to || !name) {
+        throw new Error("Numero destino y nombre de plantilla son obligatorios.");
+      }
+
+      const bodyParams = paramsRaw
+        ? paramsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+        : [];
+
+      const components = bodyParams.length
+        ? [{
+            type: "body",
+            parameters: bodyParams.map((value) => ({ type: "text", text: value }))
+          }]
+        : [];
+
+      const payload = {
+        messaging_product: "whatsapp",
+        to,
+        type: "template",
+        template: {
+          name,
+          language: { code: language },
+          ...(components.length ? { components } : {})
+        }
+      };
+
+      const url = `https://graph.facebook.com/${apiVersion}/${phoneId}/messages`;
+      const data = await graphFetch(url, token, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      log("Plantilla enviada correctamente.", data);
+    }
+
+    function attachEvents() {
+      els.saveCredsBtn.addEventListener("click", () => {
+        try { saveCredsToStorage(); } catch (e) { log(`Error: ${e.message}`); }
+      });
+
+      els.clearCredsBtn.addEventListener("click", () => {
+        try { clearCreds(); } catch (e) { log(`Error: ${e.message}`); }
+      });
+
+      els.statusFilter.addEventListener("change", renderTemplates);
+
+      els.loadTemplatesBtn.addEventListener("click", async () => {
+        try { await loadTemplates(); } catch (e) { log(`Error cargando plantillas: ${e.message}`); }
+      });
+
+      els.createTemplateBtn.addEventListener("click", async () => {
+        try { await createTemplate(); } catch (e) { log(`Error creando plantilla: ${e.message}`); }
+      });
+
+      els.sendTemplateBtn.addEventListener("click", async () => {
+        try { await sendTemplate(); } catch (e) { log(`Error enviando plantilla: ${e.message}`); }
+      });
+    }
+
+    loadCredsFromStorage();
+    attachEvents();
+    log("Herramienta lista. Carga plantillas para iniciar.");
+  </script>
+</body>
+</html>
