@@ -68,11 +68,11 @@ export async function dispatchIntervention(
   onProgress?.([...initial]);
 
   const res = await apiFetch<{
-    intervention_id?: string;
+    interventionId?: string;
     status: "dispatched" | "sent" | "delivered" | "failed";
     channel: InterventionChannel;
-    session_mode?: "convai";
-    signed_url?: string;
+    sessionMode?: "convai";
+    signedUrl?: string;
     error?: string;
   }>("/dispatch-intervention", {
     method: "POST",
@@ -102,7 +102,7 @@ export async function dispatchIntervention(
   }
   return {
     deliveries: final,
-    sessionMode: res.session_mode,
-    signedUrl: res.signed_url,
+    sessionMode: res.sessionMode,
+    signedUrl: res.signedUrl,
   };
 }

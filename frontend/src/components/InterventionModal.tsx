@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getIntervention } from "../api/agents";
 import { dispatchIntervention } from "../api/dispatch";
 import { ChannelIcon } from "./ChannelIcon";
+import { VoiceCallPanel } from "./VoiceCallPanel";
 import { useToast } from "./Toast";
 import { useI18n } from "../context/I18nContext";
 import type { ChannelDelivery, Champion, InterventionChannel, InterventionRecommendation } from "../types";
 
-type Phase = "loading" | "ready" | "dispatching" | "done" | "error" | "cooloff";
+type Phase = "loading" | "ready" | "dispatching" | "in_call" | "done" | "error" | "cooloff";
 
 const ALL_CHANNELS: InterventionChannel[] = ["email", "slack", "whatsapp", "voice_call"];
 
@@ -64,6 +65,7 @@ export function InterventionModal({
   const [deliveries, setDeliveries] = useState<ChannelDelivery[]>(
     ALL_CHANNELS.map((channel) => ({ channel, status: "pending" }))
   );
+  const [callSignedUrl, setCallSignedUrl] = useState<string | null>(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -141,10 +143,10 @@ export function InterventionModal({
         dispatchResult.signedUrl &&
         rec.interventionId
       ) {
-        onVoiceSessionStart?.({
-          interventionId: rec.interventionId,
-          signedUrl: dispatchResult.signedUrl,
-        });
+        setCallSignedUrl(dispatchResult.signedUrl);
+        setPhase("in_call");
+        toast.push("Llamada iniciada", "success");
+        return;
       }
       setPhase("done");
       toast.push(t("toast.interventionOk"), "success");
@@ -192,7 +194,9 @@ export function InterventionModal({
                 {t("modal.title", { name: accountName })}
               </p>
               <h2 className="text-lg font-semibold text-white tracking-tight">
-                {phase === "done"
+                {phase === "in_call"
+                  ? "Llamada en curso"
+                  : phase === "done"
                   ? t("modal.titleDone")
                   : phase === "cooloff"
                     ? t("modal.titleCooloff")
@@ -271,12 +275,32 @@ export function InterventionModal({
             )}
           </AnimatePresence>
 
-          {(phase === "ready" || phase === "dispatching" || phase === "done") && rec && (
+          {(phase === "ready" || phase === "dispatching" || phase === "done" || phase === "in_call") && rec && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.32, ease: panelEase, delay: 0.04 }}
             >
+              {phase === "in_call" && (
+                <div className="px-6 py-6 space-y-4">
+                  <VoiceCallPanel
+                    signedUrl={callSignedUrl ?? ""}
+                    interventionId={rec.interventionId ?? ""}
+                    triggerReason={rec.triggerReason ?? "churn_risk_high"}
+                    messageBody={message}
+                    championName={champion.name ?? "cliente"}
+                    companyName={accountName}
+                    csmName="Diego"
+                    onClose={() => {
+                      setPhase("done");
+                      toast.push("Llamada finalizada", "success");
+                    }}
+                  />
+                </div>
+              )}
+
+              {phase !== "in_call" && (
+                <>
               {rec.requiresApproval && (
                 <div className="mx-6 mt-5 flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/[0.07]">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-300 shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -455,6 +479,10 @@ export function InterventionModal({
                   </motion.span>
                 )}
               </div>
+                </>
+              )}
+
+              {phase === "in_call" && null}
             </motion.div>
           )}
         </div>
