@@ -326,3 +326,53 @@ body {
 .co-table-sm tbody td {
   padding: 0.5rem 0.75rem;
 }
+
+/* ─── Lista Intervenciones (rejilla densa + cabecera sticky) ───── */
+
+.co-inv-list-header {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: grid;
+  gap: 0.75rem;
+  align-items: end;
+  padding: 0.65rem 1.25rem;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.28);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.78) 0%, rgba(15, 23, 42, 0.92) 100%);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.co-inv-row {
+  border-bottom: 1px solid var(--co-border-table);
+  transition: background-color 0.16s ease;
+}
+
+.co-inv-row:hover {
+  background-color: rgba(var(--co-brand-rgb), 0.06);
+}
+
+.co-inv-row:focus-within {
+  background-color: rgba(var(--co-brand-rgb), 0.09);
+}
+
+.co-inv-rows .co-inv-row:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.016);
+}
+
+.co-inv-rows .co-inv-row:nth-child(even):hover {
+  background-color: rgba(var(--co-brand-rgb), 0.07);
+}
+
+.co-inv-rows .co-inv-row:nth-child(even):focus-within {
+  background-color: rgba(var(--co-brand-rgb), 0.1);
+}
+
+.co-inv-row-expanded {
+  background-color: rgba(30, 41, 59, 0.35);
+}
+
+.co-inv-row-expanded:hover {
+  background-color: rgba(36, 44, 62, 0.42);
+}

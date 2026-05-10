@@ -33,6 +33,13 @@ function IconUpload() {
     </svg>
   );
 }
+function IconInterventions() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="5 3 19 12 5 21 5 3" />
+    </svg>
+  );
+}
 
 /* ─── Language Toggle ──────────────────────────────────────────── */
 function LangToggle() {
@@ -122,13 +129,19 @@ function NavItem({ to, end, icon, label }: NavItemProps) {
 
 /* ─── Logo ─────────────────────────────────────────────────────── */
 function Logo() {
+  const logoSrc = `${import.meta.env.BASE_URL}logo.png`;
   return (
     <div className="flex items-center gap-2.5 group cursor-default select-none">
-      <div className="relative">
-        <span className="navbar-logo-halo" />
-        <div className="relative w-8 h-8 rounded-xl navbar-logo-icon flex items-center justify-center text-white font-bold text-sm z-10">
-          C
-        </div>
+      <div className="relative h-10 w-10 shrink-0">
+        <span className="navbar-logo-halo" aria-hidden />
+        <img
+          src={logoSrc}
+          alt=""
+          width={40}
+          height={40}
+          decoding="async"
+          className="relative z-10 h-10 w-10 rounded-xl object-contain bg-slate-950/50 p-0.5 ring-1 ring-white/10 shadow-md"
+        />
       </div>
       <div className="flex flex-col leading-none">
         <span className="navbar-brand-text font-bold text-[15px] tracking-tight">
@@ -174,6 +187,7 @@ export default function Navbar() {
         {/* Nav links */}
         <nav className="flex gap-0.5 flex-1">
           <NavItem to="/" end icon={<IconDashboard />} label={t("nav.dashboard")} />
+          <NavItem to="/interventions" icon={<IconInterventions />} label={t("nav.interventions")} />
           <NavItem to="/closed-loop" icon={<IconLoop />} label={t("nav.closedLoop")} />
           <NavItem to="/upload" icon={<IconUpload />} label={t("nav.import")} />
         </nav>

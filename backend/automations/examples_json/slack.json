@@ -14,5 +14,6 @@
   "agent_reasoning": "Account showing high churn risk...",
   "account_arr": 29795,
   "account_industry": "fintech",
-  "account_plan": "growth"
+  "account_plan": "growth",
+  "slack_message_markdown": "⚠️  *Aprobación requerida — Acme Corp*\n  • *ARR:* $29,795 | *Industria:* fintech | *Plan:* growth\n  • *Canal:* email | *Confianza:* 0.85\n  • *Motivo:* churn_risk_high\n  • *Aprobación:* ARR $29,795 above $25,000 threshold"
 }

@@ -1,8 +1,8 @@
-{                                                         
-    "intervention_id": "uuid",
-    "to_phone": "+573001234567",
-    "to_name": "Juan Bernardo",                                 
-    "message": "Hi Juan Bernardo, ...",
-    "account_id": "uuid",                                       
-    "account_name": "Acme Corp"                             
-  }
+{
+  "intervention_id": "uuid",
+  "to_phone": "+573001234567",
+  "to_name": "Juan Bernardo",
+  "message": "Hi Juan Bernardo, ...",
+  "account_id": "uuid",
+  "account_name": "Acme Corp"
+}

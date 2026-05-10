@@ -84,6 +84,7 @@ La cuenta es la unidad central. Cada cuenta es un cliente de "Acme SaaS Inc."
 ```sql
 CREATE TABLE accounts (
   id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  account_number      TEXT NOT NULL,
   name                TEXT NOT NULL,
   industry            TEXT NOT NULL CHECK (industry IN (
                         'fintech', 'healthtech', 'edtech', 'ecommerce',
@@ -103,6 +104,7 @@ CREATE TABLE accounts (
   champion_name       TEXT NOT NULL,
   champion_email      TEXT NOT NULL,
   champion_role       TEXT NOT NULL,
+  champion_phone      TEXT,           -- E.164: celular del champion (SMS/WhatsApp); NULL si no cargado
   champion_changed_recently BOOLEAN DEFAULT FALSE,
 
   -- Asignación interna
@@ -120,6 +122,7 @@ CREATE TABLE accounts (
   updated_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX idx_accounts_account_number ON accounts(account_number);
 CREATE INDEX idx_accounts_industry ON accounts(industry);
 CREATE INDEX idx_accounts_renewal  ON accounts(contract_renewal_date);
 CREATE INDEX idx_accounts_csm      ON accounts(csm_id);
@@ -128,12 +131,20 @@ CREATE INDEX idx_accounts_nps      ON accounts(current_nps_category);
 
 **Notas:**
 
+- `account_number` es el identificador comercial de la cuenta (número de cliente / CRM), estable y legible por humanos; distinto del `id` UUID interno.
 - `arr_usd` es el ARR actual del cliente
 - `seats_active / seats_purchased` da una métrica clave de uso
 - `contract_renewal_date` es lo que el Crystal Ball usa para "90 días antes"
+- `champion_phone` es el móvil del contacto principal (mismo formato E.164 que `csm_team.phone`).
 - `champion_changed_recently` es una señal sembrada por Persona 1 para algunas cuentas
 - **Breaking change vs versión anterior:** `csm_assigned TEXT` fue reemplazado por `csm_id UUID FK → csm_team(id)`. Frontend y agentes deben hacer JOIN para obtener nombre/handle.
 - `current_nps_score`, `current_nps_category`, `last_nps_at` son denormalizaciones del último row en `nps_responses` para evitar JOINs en listas. Persona 1 mantiene esto sincronizado vía trigger o write-through en el endpoint que registra NPS.
+
+**Migración (cuentas ya creadas en Supabase):**
+
+```sql
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS champion_phone TEXT;
+```
 
 ---
 
@@ -559,12 +570,14 @@ Lista de cuentas con health snapshot.
   "accounts": [
     {
       "id": "uuid",
+      "account_number": "ACC-2024-00482",
       "name": "Acme Corp",
       "industry": "fintech",
       "size": "mid_market",
       "plan": "growth",
       "arr_usd": 48000.00,
       "champion_name": "María Pérez",
+      "champion_phone": "+5215512345678",
       "csm_assigned": "Carlos López",
       "contract_renewal_date": "2026-08-15T00:00:00Z",
       "health_status": "at_risk",
@@ -585,6 +598,7 @@ Detalle completo de una cuenta.
 ```json
 {
   "id": "uuid",
+  "account_number": "ACC-2024-00482",
   "name": "Acme Corp",
   "industry": "fintech",
   "size": "mid_market",
@@ -599,6 +613,7 @@ Detalle completo de una cuenta.
     "name": "María Pérez",
     "email": "maria@acmecorp.com",
     "role": "VP Operations",
+    "phone": "+5215512345678",
     "changed_recently": false
   },
   "csm_assigned": "Carlos López",
@@ -652,6 +667,53 @@ Timeline de eventos para el Health Dashboard.
   ]
 }
 ```
+
+#### `GET /accounts/health-history`
+
+Lista paginada de filas de `account_health_history` (solo lectura). Útil para dashboards globales o depuración.
+
+**Query params:**
+
+- `account_id` (opcional): filtrar por cuenta
+- `health_status` (opcional): filtrar por estado (`critical`, `at_risk`, `stable`, `healthy`, `expanding`)
+- `from` (opcional): `computed_at >= from` (ISO 8601, TIMESTAMPTZ UTC)
+- `to` (opcional): `computed_at <= to` (ISO 8601, TIMESTAMPTZ UTC)
+- `limit` (default 100, máx 500)
+- `offset` (default 0)
+
+Orden: `computed_at` descendente.
+
+**Response 200:**
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "account_id": "uuid",
+      "health_status": "at_risk",
+      "churn_risk_score": 73,
+      "expansion_score": 12,
+      "top_signals": [],
+      "predicted_churn_reason": "…",
+      "crystal_ball_confidence": 0.84,
+      "computed_at": "2026-05-09T17:30:00Z",
+      "computed_by_version": "crystal-ball-v1.2"
+    }
+  ],
+  "total": 1240,
+  "limit": 100,
+  "offset": 0
+}
+```
+
+#### `GET /accounts/{account_id}/health-history`
+
+Historial de salud append-only para una cuenta. Misma forma de respuesta que el listado global, con `items` filtrados a esa cuenta.
+
+**Query params:** `health_status`, `from`, `to`, `limit`, `offset` (mismos significados que arriba; no se expone `account_id` en query porque va en la ruta).
+
+**Response 404** si la cuenta no existe.
 
 ---
 
@@ -944,7 +1006,7 @@ Persona 2 implementa estas tools como funciones Python que el agente puede llama
 
 #### `get_account_details`
 
-**Descripción:** Obtiene info base de la cuenta (industria, tamaño, plan, ARR, contract dates, champion).
+**Descripción:** Obtiene info base de la cuenta (número de cuenta, industria, tamaño, plan, ARR, contract dates, champion incl. teléfono móvil).
 **Input schema:**
 
 ```json
@@ -1613,7 +1675,7 @@ Persona 1 marca esto cuando todo lo siguiente está hecho:
 - Supabase project creado y conectado
 - Todas las tablas de la sección 1 creadas con sus índices:
   - `csm_team`
-  - `accounts` (con `csm_id` FK + columnas NPS denormalizadas)
+  - `accounts` (con `account_number`, `csm_id` FK + columnas NPS denormalizadas)
   - `usage_events`, `tickets`, `conversations`
   - `nps_responses`
   - `interventions` (con `requires_approval`, `approved_by`, status enum extendido)
@@ -1648,5 +1710,5 @@ Persona 1 marca esto cuando todo lo siguiente está hecho:
 
 ---
 
-**Última actualización:** Adición de `csm_team`, `nps_responses`, `account_health_history`, `system_settings`, flujo de aprobación humana en `interventions` y webhook inbound de respuesta del cliente (3.6). — Persona 1.
+**Última actualización:** Endpoints de solo lectura `GET /accounts/health-history` y `GET /accounts/{account_id}/health-history` (§2.1). Cambios anteriores: columna y API `champion_phone` / `champion.phone` en `accounts`; `account_number` e índice único; `csm_team`, `nps_responses`, `account_health_history`, `system_settings`, flujo de aprobación humana en `interventions` y webhook inbound (3.6).
 **Próxima revisión:** Después del kickoff, cuando los 4 lo lean y propongan ajustes. Revisión obligatoria de Persona 2 (campo `requires_approval` en output del Intervention Engine + nuevo tool `get_nps_history` opcional) y Persona 3 (sección 3.6 customer-response webhook).

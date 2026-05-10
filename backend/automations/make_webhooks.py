@@ -1,7 +1,16 @@
-"""Make.com webhook dispatcher."""
+"""Make.com webhook dispatcher per CONTRACTS.md section 3."""
+
+from __future__ import annotations
+
+import logging
 import os
-from typing import Optional
+from typing import Any
+
 import httpx
+
+logger = logging.getLogger(__name__)
+
+_TIMEOUT_SECS = 10.0
 
 
 def slack_approval_notice_markdown(
@@ -26,8 +35,19 @@ def slack_approval_notice_markdown(
     )
 
 
-def _post(url: str, payload: dict) -> dict:
-    resp = httpx.post(url, json=payload, timeout=10)
+def _post(url: str, payload: dict[str, Any], label: str) -> tuple[bool, str | None]:
+    try:
+        resp = httpx.post(url, json=payload, timeout=_TIMEOUT_SECS)
+        if resp.status_code >= 400:
+            return False, f"webhook {resp.status_code}: {resp.text[:300]}"
+        return True, None
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("%s webhook post failed", label)
+        return False, str(exc)
+
+
+def _legacy_post(url: str, payload: dict[str, Any]) -> dict[str, Any]:
+    resp = httpx.post(url, json=payload, timeout=_TIMEOUT_SECS)
     resp.raise_for_status()
     try:
         return resp.json()
@@ -43,8 +63,8 @@ def send_email(
     body: str,
     account_id: str,
     account_name: str,
-) -> dict:
-    return _post(
+) -> dict[str, Any]:
+    return _legacy_post(
         os.environ["MAKE_WEBHOOK_EMAIL"],
         {
             "intervention_id": intervention_id,
@@ -69,13 +89,13 @@ def send_slack(
     trigger_reason: str,
     confidence: float,
     playbook_id: str,
-    playbook_success_rate: Optional[float],
+    playbook_success_rate: float | None,
     approval_reasoning: str,
     agent_reasoning: str,
     account_arr: float,
     account_industry: str,
     account_plan: str,
-) -> dict:
+) -> dict[str, Any]:
     notice = slack_approval_notice_markdown(
         account_name=account_name,
         account_arr=account_arr,
@@ -86,7 +106,7 @@ def send_slack(
         trigger_reason=trigger_reason,
         approval_reasoning=approval_reasoning,
     )
-    return _post(
+    return _legacy_post(
         os.environ["MAKE_WEBHOOK_SLACK"],
         {
             "intervention_id": intervention_id,
@@ -117,8 +137,8 @@ def send_whatsapp(
     message: str,
     account_id: str,
     account_name: str,
-) -> dict:
-    return _post(
+) -> dict[str, Any]:
+    return _legacy_post(
         os.environ["MAKE_WEBHOOK_WHATSAPP"],
         {
             "intervention_id": intervention_id,
@@ -137,8 +157,8 @@ def send_voice(
     audio_url: str,
     fallback_text: str,
     callback_url: str,
-) -> dict:
-    return _post(
+) -> dict[str, Any]:
+    return _legacy_post(
         os.environ["MAKE_WEBHOOK_VOICE"],
         {
             "intervention_id": intervention_id,
@@ -148,3 +168,25 @@ def send_voice(
             "callback_url": callback_url,
         },
     )
+
+
+def _email_webhook_url() -> str | None:
+    return os.environ.get("MAKE_EMAIL_WEBHOOK_URL") or os.environ.get("MAKE_WEBHOOK_URL")
+
+
+def _whatsapp_webhook_url() -> str | None:
+    return os.environ.get("MAKE_WHATSAPP_WEBHOOK_URL")
+
+
+def post_email_webhook(payload: dict[str, Any]) -> tuple[bool, str | None]:
+    url = _email_webhook_url()
+    if not url:
+        return False, "no_webhook_url_configured"
+    return _post(url, payload, "email")
+
+
+def post_whatsapp_webhook(payload: dict[str, Any]) -> tuple[bool, str | None]:
+    url = _whatsapp_webhook_url()
+    if not url:
+        return False, "no_webhook_url_configured"
+    return _post(url, payload, "whatsapp")

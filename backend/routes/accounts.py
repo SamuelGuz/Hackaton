@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.routes.schemas_accounts import (
     AccountDetailResponse,
+    AccountHealthHistoryItem,
+    AccountHealthHistoryListResponse,
     AccountListItem,
     AccountsListResponse,
     ChampionDetail,
@@ -19,7 +22,10 @@ from backend.routes.schemas_accounts import (
     NpsDetail,
     TimelineEvent,
     TimelineResponse,
+    CreateAccountRequest,
+    CreateAccountResponse,
 )
+from backend.shared.api_auth import require_api_key
 from backend.shared.supabase_client import get_client
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -27,6 +33,8 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 _TIMELINE_PER_SOURCE = 100
 _TIMELINE_MAX_EVENTS = 400
 _DEFAULT_TS = datetime(1970, 1, 1, tzinfo=timezone.utc)
+_HEALTH_HISTORY_DEFAULT_LIMIT = 100
+_HEALTH_HISTORY_MAX_LIMIT = 500
 
 
 def _http_error(status: int, code: str, message: str, details: dict[str, Any] | None = None) -> HTTPException:
@@ -153,6 +161,83 @@ def _snippet(text: str | None, max_len: int = 160) -> str:
     return t[: max_len - 1] + "…"
 
 
+def _computed_at_iso(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
+
+
+def _apply_health_history_filters(
+    q: Any,
+    *,
+    account_id: str | None,
+    health_status: str | None,
+    computed_from: datetime | None,
+    computed_to: datetime | None,
+) -> Any:
+    if account_id:
+        q = q.eq("account_id", account_id.strip())
+    if health_status:
+        q = q.eq("health_status", health_status)
+    if computed_from is not None:
+        q = q.gte("computed_at", _computed_at_iso(computed_from))
+    if computed_to is not None:
+        q = q.lte("computed_at", _computed_at_iso(computed_to))
+    return q
+
+
+def _health_history_row_to_item(row: dict[str, Any]) -> AccountHealthHistoryItem:
+    conf_raw = row.get("crystal_ball_confidence")
+    conf: float | None
+    if conf_raw is None:
+        conf = None
+    else:
+        conf = float(conf_raw)
+    ts = _parse_ts(row.get("computed_at")) or _DEFAULT_TS
+    return AccountHealthHistoryItem(
+        id=str(row["id"]),
+        account_id=str(row["account_id"]),
+        health_status=str(row.get("health_status") or "stable"),
+        churn_risk_score=_int(row.get("churn_risk_score")),
+        expansion_score=_int(row.get("expansion_score")),
+        top_signals=row.get("top_signals"),
+        predicted_churn_reason=(
+            str(row["predicted_churn_reason"]) if row.get("predicted_churn_reason") else None
+        ),
+        crystal_ball_confidence=conf,
+        computed_at=ts,
+        computed_by_version=str(row.get("computed_by_version") or ""),
+    )
+
+
+def _fetch_health_history_page(
+    *,
+    account_id: str | None,
+    health_status: str | None,
+    computed_from: datetime | None,
+    computed_to: datetime | None,
+    limit: int,
+    offset: int,
+) -> tuple[list[AccountHealthHistoryItem], int]:
+    client = get_client()
+    sel = client.table("account_health_history").select(
+        "id,account_id,churn_risk_score,expansion_score,health_status,top_signals,"
+        "predicted_churn_reason,crystal_ball_confidence,computed_at,computed_by_version",
+        count="exact",
+    )
+    sel = _apply_health_history_filters(
+        sel,
+        account_id=account_id,
+        health_status=health_status,
+        computed_from=computed_from,
+        computed_to=computed_to,
+    )
+    res = sel.order("computed_at", desc=True).range(offset, offset + limit - 1).execute()
+    total = int(res.count) if res.count is not None else 0
+    items = [_health_history_row_to_item(r) for r in (res.data or [])]
+    return items, total
+
+
 def _collect_matching_account_ids(
     *,
     health_status: str | None,
@@ -187,7 +272,7 @@ def _fetch_accounts_rows(account_ids: list[str]) -> dict[str, dict[str, Any]]:
         return {}
     client = get_client()
     select = (
-        "id,name,industry,size,plan,arr_usd,champion_name,champion_email,champion_role,"
+        "id,account_number,name,industry,size,plan,arr_usd,champion_name,champion_email,champion_role,champion_phone,"
         "champion_changed_recently,geography,seats_purchased,seats_active,signup_date,"
         "contract_renewal_date,last_qbr_date,current_nps_score,current_nps_category,last_nps_at,"
         "csm_id,"
@@ -205,6 +290,121 @@ def _fetch_accounts_rows(account_ids: list[str]) -> dict[str, dict[str, Any]]:
         for row in res.data or []:
             out[str(row["id"])] = row
     return out
+
+
+def _create_health_records(
+    *,
+    client: Any,
+    account_id: str,
+    churn_risk_score: int,
+    expansion_score: int,
+    health_status: str,
+    predicted_churn_reason: str | None,
+    crystal_ball_reasoning: str,
+) -> None:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    snapshot_payload = {
+        "account_id": account_id,
+        "churn_risk_score": churn_risk_score,
+        "expansion_score": expansion_score,
+        "health_status": health_status,
+        "top_signals": [],
+        "predicted_churn_reason": predicted_churn_reason,
+        "crystal_ball_confidence": None,
+        "crystal_ball_reasoning": crystal_ball_reasoning,
+        "ready_to_expand": expansion_score >= 60,
+        "recommended_plan": None,
+        "expansion_reasoning": None,
+        "suggested_upsell_message": None,
+        "computed_at": now_iso,
+        "computed_by_version": "account-create-v1",
+    }
+    history_payload = {
+        "id": str(uuid.uuid4()),
+        "account_id": account_id,
+        "churn_risk_score": churn_risk_score,
+        "expansion_score": expansion_score,
+        "health_status": health_status,
+        "top_signals": [],
+        "predicted_churn_reason": predicted_churn_reason,
+        "crystal_ball_confidence": None,
+        "computed_at": now_iso,
+        "computed_by_version": "account-create-v1",
+    }
+    client.table("account_health_snapshot").upsert(snapshot_payload, on_conflict="account_id").execute()
+    client.table("account_health_history").insert(history_payload).execute()
+
+
+@router.post("", response_model=CreateAccountResponse)
+def create_account(
+    request: CreateAccountRequest,
+    _auth: None = Depends(require_api_key),
+) -> CreateAccountResponse:
+    client = get_client()
+    existing = (
+        client.table("accounts")
+        .select("id")
+        .eq("account_number", request.account_number.strip())
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        return CreateAccountResponse(
+            inserted=False,
+            skipped=True,
+            account_id=str(existing.data[0]["id"]),
+            message="Cuenta omitida: account_number ya existe",
+        )
+
+    csm_exists = client.table("csm_team").select("id").eq("id", request.csm_id).limit(1).execute()
+    if not csm_exists.data:
+        raise _http_error(422, "validation_error", "csm_id no existe en csm_team", {"csm_id": request.csm_id})
+
+    account_id = str(uuid.uuid4())
+    payload = {
+        "id": account_id,
+        "account_number": request.account_number.strip(),
+        "name": request.name.strip(),
+        "industry": request.industry,
+        "size": request.size,
+        "geography": request.geography,
+        "plan": request.plan,
+        "arr_usd": request.arr_usd,
+        "seats_purchased": request.seats_purchased,
+        "seats_active": request.seats_active,
+        "signup_date": request.signup_date.isoformat(),
+        "contract_renewal_date": request.contract_renewal_date.isoformat(),
+        "champion_name": request.champion_name.strip(),
+        "champion_email": request.champion_email.strip(),
+        "champion_role": request.champion_role.strip(),
+        "champion_phone": request.champion_phone.strip() if request.champion_phone else None,
+        "champion_changed_recently": request.champion_changed_recently,
+        "csm_id": request.csm_id,
+        "last_qbr_date": request.last_qbr_date.isoformat() if request.last_qbr_date else None,
+        "current_nps_score": request.current_nps_score,
+        "current_nps_category": request.current_nps_category,
+        "last_nps_at": request.last_nps_at.isoformat() if request.last_nps_at else None,
+    }
+    try:
+        client.table("accounts").insert(payload).execute()
+        _create_health_records(
+            client=client,
+            account_id=account_id,
+            churn_risk_score=request.health.churn_risk_score,
+            expansion_score=request.health.expansion_score,
+            health_status=request.health.health_status,
+            predicted_churn_reason=request.health.predicted_churn_reason,
+            crystal_ball_reasoning=request.health.crystal_ball_reasoning,
+        )
+    except Exception as exc:
+        raise _http_error(500, "insert_failed", "No se pudo crear la cuenta", {"reason": str(exc)}) from exc
+
+    return CreateAccountResponse(
+        inserted=True,
+        skipped=False,
+        account_id=account_id,
+        message="Cuenta creada correctamente",
+    )
 
 
 @router.get("", response_model=AccountsListResponse)
@@ -239,12 +439,14 @@ def list_accounts(
         accounts.append(
             AccountListItem(
                 id=str(row["id"]),
+                account_number=str(row.get("account_number") or ""),
                 name=str(row["name"]),
                 industry=str(row["industry"]),
                 size=str(row["size"]),
                 plan=str(row["plan"]),
                 arr_usd=_num(row.get("arr_usd")),
                 champion_name=str(row.get("champion_name") or ""),
+                champion_phone=row.get("champion_phone"),
                 csm=CsmListItem(
                     id=str(csm["id"]),
                     name=str(csm["name"]),
@@ -262,6 +464,27 @@ def list_accounts(
         )
 
     return AccountsListResponse(accounts=accounts, total=total)
+
+
+@router.get("/health-history", response_model=AccountHealthHistoryListResponse)
+def list_account_health_history_global(
+    account_id: str | None = Query(default=None, description="Filter by account UUID"),
+    health_status: str | None = Query(default=None),
+    computed_from: datetime | None = Query(default=None, alias="from"),
+    computed_to: datetime | None = Query(default=None, alias="to"),
+    limit: int = Query(default=_HEALTH_HISTORY_DEFAULT_LIMIT, ge=1, le=_HEALTH_HISTORY_MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
+) -> AccountHealthHistoryListResponse:
+    aid = account_id.strip() if account_id else None
+    items, total = _fetch_health_history_page(
+        account_id=aid,
+        health_status=health_status,
+        computed_from=computed_from,
+        computed_to=computed_to,
+        limit=limit,
+        offset=offset,
+    )
+    return AccountHealthHistoryListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.get("/{account_id}/timeline", response_model=TimelineResponse)
@@ -445,12 +668,36 @@ def get_account_timeline(account_id: str) -> TimelineResponse:
     return TimelineResponse(account_id=account_id, events=events)
 
 
+@router.get("/{account_id}/health-history", response_model=AccountHealthHistoryListResponse)
+def get_account_health_history(
+    account_id: str,
+    health_status: str | None = Query(default=None),
+    computed_from: datetime | None = Query(default=None, alias="from"),
+    computed_to: datetime | None = Query(default=None, alias="to"),
+    limit: int = Query(default=_HEALTH_HISTORY_DEFAULT_LIMIT, ge=1, le=_HEALTH_HISTORY_MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
+) -> AccountHealthHistoryListResponse:
+    client = get_client()
+    exists = client.table("accounts").select("id").eq("id", account_id).limit(1).execute()
+    if not (exists.data or []):
+        raise _http_error(404, "not_found", "Account not found", {"account_id": account_id})
+    items, total = _fetch_health_history_page(
+        account_id=account_id,
+        health_status=health_status,
+        computed_from=computed_from,
+        computed_to=computed_to,
+        limit=limit,
+        offset=offset,
+    )
+    return AccountHealthHistoryListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
 @router.get("/{account_id}", response_model=AccountDetailResponse)
 def get_account(account_id: str) -> AccountDetailResponse:
     client = get_client()
     select = (
-        "id,name,industry,size,plan,arr_usd,geography,seats_purchased,seats_active,signup_date,"
-        "contract_renewal_date,champion_name,champion_email,champion_role,champion_changed_recently,"
+        "id,account_number,name,industry,size,plan,arr_usd,geography,seats_purchased,seats_active,signup_date,"
+        "contract_renewal_date,champion_name,champion_email,champion_role,champion_phone,champion_changed_recently,"
         "last_qbr_date,current_nps_score,current_nps_category,last_nps_at,"
         "csm_team(id,name,email,slack_handle,slack_user_id,phone,role),"
         "account_health_snapshot("
@@ -521,6 +768,7 @@ def get_account(account_id: str) -> AccountDetailResponse:
 
     return AccountDetailResponse(
         id=str(row["id"]),
+        account_number=str(row.get("account_number") or ""),
         name=str(row["name"]),
         industry=str(row["industry"]),
         size=str(row["size"]),
@@ -535,6 +783,7 @@ def get_account(account_id: str) -> AccountDetailResponse:
             name=str(row.get("champion_name") or ""),
             email=str(row.get("champion_email") or ""),
             role=str(row.get("champion_role") or ""),
+            phone=row.get("champion_phone"),
             changed_recently=bool(row.get("champion_changed_recently")),
         ),
         csm=CsmDetail(
