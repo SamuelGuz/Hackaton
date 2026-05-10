@@ -149,6 +149,96 @@ def _update_intervention(intervention_id: str, data: dict[str, Any]) -> None:
     _sb().table("interventions").update(data).eq("id", intervention_id).execute()
 
 
+def _extract_text(msg: dict[str, Any], paths: list[tuple[str, ...]]) -> str:
+    """Best-effort extraction for transcript text across event shapes."""
+    for path in paths:
+        cur: Any = msg
+        ok = True
+        for key in path:
+            if not isinstance(cur, dict) or key not in cur:
+                ok = False
+                break
+            cur = cur[key]
+        if ok and isinstance(cur, str) and cur.strip():
+            return cur.strip()
+    return ""
+
+
+def _finalize_call(intervention_id: str, turns: list[dict[str, str]], delivered_at: str) -> None:
+    """Write closed-loop records for a finished voice call."""
+    from .channel_router import _apply_playbook_outcome, _classify_outcome_llm
+
+    sb = _sb()
+    inv_res = (
+        sb.table("interventions")
+        .select("account_id,playbook_id_used,recipient,trigger_reason,status")
+        .eq("id", intervention_id)
+        .maybe_single()
+        .execute()
+    )
+    inv = getattr(inv_res, "data", None) or {}
+    if not inv:
+        logger.warning("[twilio-bridge] finalize: intervention %s not found", intervention_id)
+        return
+
+    account_id = str(inv.get("account_id") or "")
+    playbook_id = inv.get("playbook_id_used")
+    recipient = str(inv.get("recipient") or "")
+    trigger_reason = str(inv.get("trigger_reason") or "voice_call")
+    current_status = str(inv.get("status") or "")
+
+    script = "\n".join(
+        f"{'Agente' if t.get('role') == 'agent' else 'Cliente'}: {t.get('text', '').strip()}"
+        for t in turns
+        if str(t.get("text") or "").strip()
+    )
+    customer_spoke = any(
+        t.get("role") == "user" and str(t.get("text") or "").strip() for t in turns
+    )
+
+    now = _now()
+    if customer_spoke:
+        outcome, notes = _classify_outcome_llm(script or "Cliente respondió en llamada.")
+        update: dict[str, Any] = {
+            "status": "responded",
+            "delivered_at": delivered_at,
+            "responded_at": now,
+            "outcome": outcome,
+            "outcome_notes": notes,
+            "outcome_recorded_at": now,
+        }
+        _update_intervention(intervention_id, update)
+
+        if account_id:
+            sb.table("conversations").insert(
+                {
+                    "account_id": account_id,
+                    "channel": "call_transcript",
+                    "direction": "inbound",
+                    "participants": [recipient, os.environ.get("TWILIO_FROM_NUMBER", "")],
+                    "subject": f"Voice call - {trigger_reason}",
+                    "content": script or "Cliente respondió por llamada.",
+                    "occurred_at": now,
+                    "intervention_id": intervention_id,
+                }
+            ).execute()
+    else:
+        update = {
+            "delivered_at": delivered_at,
+            "outcome": "no_response",
+            "outcome_notes": "Llamada sin respuesta del cliente",
+            "outcome_recorded_at": now,
+        }
+        # Si Twilio ya marcó failed/busy/no-answer por callback, respetamos ese estado.
+        if current_status in ("pending", "sent", "delivered", "opened", ""):
+            update["status"] = "delivered"
+        _update_intervention(intervention_id, update)
+        outcome = "no_response"
+
+    if playbook_id:
+        _apply_playbook_outcome(sb, str(playbook_id), outcome)
+
+
 async def bridge(twilio_ws: WebSocket) -> None:
     """Bridge Twilio media websocket with ElevenLabs conversation websocket.
 
@@ -167,6 +257,7 @@ async def bridge(twilio_ws: WebSocket) -> None:
     intervention_id: str = ""
     stream_sid: str | None = None
     call_sid: str | None = None
+    turns: list[dict[str, str]] = []
 
     while True:
         raw = await twilio_ws.receive_text()
@@ -277,6 +368,34 @@ async def bridge(twilio_ws: WebSocket) -> None:
                     )
                     continue
 
+                # Transcript events for closed-loop writeback.
+                event_type = str(msg.get("type") or "")
+                user_text = _extract_text(
+                    msg,
+                    [
+                        ("user_transcription_event", "user_transcript"),
+                        ("user_transcript_event", "user_transcript"),
+                        ("user_transcript",),
+                    ],
+                )
+                if event_type in ("user_transcript", "user_transcript_event") or user_text:
+                    if user_text:
+                        turns.append({"role": "user", "text": user_text})
+                    continue
+
+                agent_text = _extract_text(
+                    msg,
+                    [
+                        ("agent_response_event", "agent_response"),
+                        ("agent_response", "text"),
+                        ("agent_response",),
+                    ],
+                )
+                if event_type in ("agent_response", "agent_response_event") or agent_text:
+                    if agent_text:
+                        turns.append({"role": "agent", "text": agent_text})
+                    continue
+
                 if msg.get("type") == "interruption_event" and stream_sid:
                     await twilio_ws.send_text(
                         json.dumps({"event": "clear", "streamSid": stream_sid})
@@ -288,12 +407,6 @@ async def bridge(twilio_ws: WebSocket) -> None:
             logger.warning("[twilio-bridge] closed with error: %s", exc)
         finally:
             try:
-                _update_intervention(
-                    intervention_id,
-                    {
-                        "status": "delivered",
-                        "delivered_at": _now(),
-                    },
-                )
+                _finalize_call(intervention_id, turns, delivered_at=_now())
             except Exception as exc:  # noqa: BLE001
-                logger.warning("[twilio-bridge] failed to update intervention on close: %s", exc)
+                logger.warning("[twilio-bridge] finalize failed on close: %s", exc)
