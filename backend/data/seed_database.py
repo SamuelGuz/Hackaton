@@ -21,6 +21,16 @@ load_dotenv(_ROOT / ".env")
 from backend.data.synthetic_generator import GeneratedDataset, GeneratorConfig, build_dataset
 from backend.shared.supabase_client import get_client
 
+APPEND_SAFE_TABLES: tuple[str, ...] = (
+    "accounts",
+    "usage_events",
+    "tickets",
+    "conversations",
+    "nps_responses",
+    "account_health_history",
+    "account_health_snapshot",
+)
+
 
 def _chunks(rows: list[dict[str, Any]], size: int) -> Iterable[list[dict[str, Any]]]:
     for i in range(0, len(rows), size):
@@ -80,12 +90,97 @@ def validate_dataset(ds: GeneratedDataset, expected_accounts: int, expected_deal
         assert a.get("current_nps_score") is not None
 
 
-def run_seed(cfg: GeneratorConfig, *, do_reset: bool, only: set[str] | None) -> None:
+def count_rows(client: Any, table: str, pk_field: str = "id") -> int:
+    try:
+        r = (
+            client.table(table)
+            .select(pk_field, count="exact")  # type: ignore[arg-type]
+            .limit(1)
+            .execute()
+        )
+        c = getattr(r, "count", None)
+        if c is None:
+            return len(r.data or [])
+        return int(c)
+    except Exception:
+        return 0
+
+
+def fetch_account_names(client: Any) -> set[str]:
+    """Fetch existing account names to avoid duplicates in append mode."""
+    try:
+        r = client.table("accounts").select("name").execute()
+        data = r.data or []
+        return {
+            str(row.get("name")).strip()
+            for row in data
+            if isinstance(row, dict) and row.get("name")
+        }
+    except Exception:
+        return set()
+
+
+def dedupe_account_names(accounts: list[dict[str, Any]], existing_names: set[str]) -> int:
+    """
+    Ensure account names are unique against existing rows and within the current batch.
+    Returns number of renamed rows.
+    """
+    used = {n for n in existing_names if n}
+    renamed = 0
+    for idx, row in enumerate(accounts, start=1):
+        base_name = str(row.get("name") or "").strip() or f"Generated Account {idx}"
+        candidate = base_name
+        suffix = 2
+        while candidate in used:
+            candidate = f"{base_name} ({suffix})"
+            suffix += 1
+        if candidate != base_name:
+            row["name"] = candidate
+            renamed += 1
+        used.add(candidate)
+    return renamed
+
+
+def run_seed(
+    cfg: GeneratorConfig,
+    *,
+    do_reset: bool,
+    only: set[str] | None,
+    append_mode: bool,
+) -> None:
     client = get_client()
+    if do_reset and append_mode:
+        raise ValueError("--append and --reset are mutually exclusive.")
+
+    existing_account_names: set[str] = set()
+    if append_mode and only is None:
+        only = set(APPEND_SAFE_TABLES)
+        print("Append mode enabled: inserting only append-safe tables by default.")
+
+    if append_mode and only and "accounts" in only:
+        csm_count = count_rows(client, "csm_team")
+        if csm_count == 0:
+            raise RuntimeError(
+                "Append mode needs existing csm_team rows (accounts.csm_id FK). "
+                "Run a full seed first or include csm_team explicitly."
+            )
+        existing_accounts = count_rows(client, "accounts")
+        existing_account_names = fetch_account_names(client)
+        # Prevent deterministic collisions when running append repeatedly with the same --seed.
+        cfg.random_seed = cfg.random_seed + existing_accounts
+        print(
+            f"Append mode: detected {existing_accounts} existing accounts; "
+            f"using effective seed={cfg.random_seed}."
+        )
+
     if do_reset:
         reset_tables(client)
 
     ds = build_dataset(cfg)
+    if append_mode and only and "accounts" in only:
+        renamed = dedupe_account_names(ds.accounts, existing_account_names)
+        if renamed:
+            print(f"Append mode: renamed {renamed} generated account names to avoid duplicates.")
     validate_dataset(ds, cfg.num_accounts, cfg.historical_deals_n)
 
     def want(name: str) -> bool:
@@ -117,15 +212,7 @@ def run_seed(cfg: GeneratorConfig, *, do_reset: bool, only: set[str] | None) -> 
     # Post-insert counts
     for t in ("accounts", "usage_events", "tickets", "conversations", "nps_responses"):
         try:
-            r = (
-                client.table(t)
-                .select("id", count="exact")  # type: ignore[arg-type]
-                .limit(1)
-                .execute()
-            )
-            c = getattr(r, "count", None)
-            if c is None:
-                c = len(r.data or [])
+            c = count_rows(client, t)
             print(f"Count {t}: {c}")
         except Exception as e:
             print(f"Count {t} failed: {e}")
@@ -139,6 +226,15 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Seed Supabase with synthetic demo data.")
     p.add_argument("--reset", action="store_true", help="Delete seed tables before insert")
     p.add_argument("--only", type=str, default="", help="Comma tables e.g. accounts,usage_events")
+    p.add_argument(
+        "--append",
+        action="store_true",
+        help=(
+            "Append new generated rows without deleting existing dataset. "
+            "If --only is omitted, inserts only append-safe tables "
+            "(accounts + dependent tables)."
+        ),
+    )
     p.add_argument("--accounts", type=int, default=200, dest="num_accounts")
     p.add_argument("--skip-claude", action="store_true")
     p.add_argument("--seed", type=int, default=42)
@@ -157,7 +253,12 @@ def main() -> None:
         random_seed=args.seed,
         monte_carlo=args.monte_carlo,
     )
-    run_seed(cfg, do_reset=args.reset, only=only)
+    run_seed(
+        cfg,
+        do_reset=args.reset,
+        only=only,
+        append_mode=args.append,
+    )
 
 
 if __name__ == "__main__":

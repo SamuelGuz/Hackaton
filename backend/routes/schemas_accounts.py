@@ -27,6 +27,7 @@ class AccountListItem(BaseModel):
     plan: str
     arr_usd: float
     champion_name: str
+    champion_phone: str | None = None
     csm: CsmListItem
     contract_renewal_date: datetime
     health_status: str
@@ -50,6 +51,7 @@ class ChampionDetail(BaseModel):
     name: str
     email: str
     role: str
+    phone: str | None = None
     changed_recently: bool
 
 

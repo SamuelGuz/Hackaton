@@ -90,6 +90,7 @@ def _recipient_for_channel(
     channel: str,
     *,
     champion_email: str,
+    champion_phone: str | None,
     csm_slack: str | None,
     csm_phone: str | None,
 ) -> str:
@@ -100,6 +101,8 @@ def _recipient_for_channel(
             return csm_slack.strip().lstrip("@")
         return champion_email or ""
     if channel in ("whatsapp", "voice_call"):
+        if champion_phone and re.search(r"\d", champion_phone):
+            return champion_phone.strip()
         if csm_phone and re.search(r"\d", csm_phone or ""):
             return csm_phone.strip()
         return champion_email or ""
@@ -136,7 +139,7 @@ def post_intervention_recommendation(
     acc = (
         client.table("accounts")
         .select(
-            "id,name,industry,size,champion_name,champion_email,"
+            "id,name,industry,size,champion_name,champion_email,champion_phone,"
             "csm_team(phone,slack_handle,email)"
         )
         .eq("id", account_id)
@@ -153,6 +156,11 @@ def post_intervention_recommendation(
     name = str(row.get("name") or "")
     champ = str(row.get("champion_name") or "")
     email = str(row.get("champion_email") or "")
+    champ_phone = row.get("champion_phone")
+    if isinstance(champ_phone, str):
+        champ_phone = champ_phone.strip() or None
+    else:
+        champ_phone = None
     csm = row.get("csm_team")
     if isinstance(csm, list):
         csm = csm[0] if csm else None
@@ -192,6 +200,7 @@ def post_intervention_recommendation(
     recipient = _recipient_for_channel(
         channel,
         champion_email=email,
+        champion_phone=champ_phone,
         csm_slack=str(csm_slack) if csm_slack else None,
         csm_phone=str(csm_phone) if csm_phone else None,
     )
