@@ -262,7 +262,10 @@ def dispatch_callback(body: CallbackPayload):
     elif body.status == "failed":
         update["status"] = "failed"
 
-    _update_intervention(body.intervention_id, update)
+    try:
+        _update_intervention(body.intervention_id, update)
+    except Exception:
+        pass  # best-effort; returning 500 causes Make to retry indefinitely
     return {"received": True}
 
 
