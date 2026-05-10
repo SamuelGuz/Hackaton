@@ -240,3 +240,29 @@ def expansion(account_id: str, body: ExpansionRequest | None = None) -> dict:
         "suggested_upsell_message": output.suggested_upsell_message,
         "computed_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+class BatchProcessRequest(BaseModel):
+    limit: int = Field(default=4, ge=1, le=20)
+    trigger_reason: str = Field(default="churn_risk_high", min_length=1)
+
+
+@router.post("/batch-process", status_code=202)
+def batch_process(body: BatchProcessRequest) -> dict:
+    """Trigger async parallel processing for the N newest accounts."""
+    from backend.agents.batch_processor import submit_batch
+    try:
+        result = submit_batch(limit=body.limit, trigger_reason=body.trigger_reason)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return result.model_dump()
+
+
+@router.get("/batch-process/{batch_id}")
+def batch_status(batch_id: str) -> dict:
+    """Poll the status of a batch run."""
+    from backend.agents.batch_processor import get_batch_status
+    status = get_batch_status(batch_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail="batch_not_found")
+    return status.model_dump()
