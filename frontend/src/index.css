@@ -1,10 +1,32 @@
 @import "tailwindcss";
 
+/* Design tokens — canvas, brand, semantic (single thread + bounded accents) */
+:root {
+  --co-canvas: #0a0c11;
+  --co-canvas-rgb: 10, 12, 17;
+  --co-fg: #e2e8f0;
+  --co-fg-muted: #94a3b8;
+  --co-border-subtle: rgba(30, 41, 59, 0.5);
+  --co-border-table: rgba(30, 41, 59, 0.28);
+  --co-brand-rgb: 99, 102, 241;
+  --co-brand-mid-rgb: 168, 85, 247;
+  --co-brand-accent-rgb: 236, 72, 153;
+  --co-semantic-risk-rgb: 251, 113, 133;
+  --co-semantic-info-rgb: 56, 189, 248;
+  --co-semantic-money-rgb: 251, 191, 36;
+  --co-elev-1: rgba(17, 24, 39, 0.93);
+  --co-elev-2: rgba(10, 14, 22, 0.9);
+  --co-elev-3: rgba(6, 8, 14, 0.96);
+  --co-data-top: rgba(18, 21, 28, 0.97);
+  --co-scrollbar-thumb: #1e293b;
+  --co-scrollbar-thumb-hover: #334155;
+}
+
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background: #0a0c11;
-  color: #e2e8f0;
+  background: var(--co-canvas);
+  color: var(--co-fg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -31,27 +53,27 @@ body {
 /* sleek scrollbar (dark) */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: #334155; }
+::-webkit-scrollbar-thumb { background: var(--co-scrollbar-thumb); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--co-scrollbar-thumb-hover); }
 
 /* ─── Navbar styles ──────────────────────────────────────────── */
 
 /* Base states */
 .navbar-top {
-  background: rgba(10, 12, 17, 0.6);
+  background: rgba(var(--co-canvas-rgb), 0.6);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(30, 41, 59, 0.5);
+  border-bottom: 1px solid var(--co-border-subtle);
 }
 
 .navbar-scrolled {
   background: rgba(7, 9, 14, 0.88);
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+  border-bottom: 1px solid rgba(var(--co-brand-rgb), 0.15);
   box-shadow:
     0 4px 32px -4px rgba(0, 0, 0, 0.5),
-    0 0 0 0.5px rgba(99, 102, 241, 0.08) inset;
+    0 0 0 0.5px rgba(var(--co-brand-rgb), 0.08) inset;
 }
 
 /* Gradient animated line at the bottom */
@@ -64,11 +86,11 @@ body {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(99, 102, 241, 0) 10%,
-    rgba(99, 102, 241, 0.7) 30%,
-    rgba(168, 85, 247, 0.9) 50%,
-    rgba(99, 102, 241, 0.7) 70%,
-    rgba(99, 102, 241, 0) 90%,
+    rgba(var(--co-brand-rgb), 0) 10%,
+    rgba(var(--co-brand-rgb), 0.7) 30%,
+    rgba(var(--co-brand-mid-rgb), 0.9) 50%,
+    rgba(var(--co-brand-rgb), 0.7) 70%,
+    rgba(var(--co-brand-rgb), 0) 90%,
     transparent 100%
   );
   background-size: 200% 100%;
@@ -83,10 +105,15 @@ body {
 
 /* Logo icon – animated gradient */
 .navbar-logo-icon {
-  background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+  background: linear-gradient(
+    135deg,
+    rgb(var(--co-brand-rgb)),
+    rgb(var(--co-brand-mid-rgb)),
+    rgb(var(--co-brand-accent-rgb))
+  );
   background-size: 200% 200%;
   animation: logo-gradient-shift 4s ease infinite;
-  box-shadow: 0 0 16px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 16px rgba(var(--co-brand-rgb), 0.4);
 }
 
 @keyframes logo-gradient-shift {
@@ -100,7 +127,11 @@ body {
   position: absolute;
   inset: -4px;
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(99,102,241,0.35), rgba(168,85,247,0.35));
+  background: linear-gradient(
+    135deg,
+    rgba(var(--co-brand-rgb), 0.35),
+    rgba(var(--co-brand-mid-rgb), 0.35)
+  );
   filter: blur(8px);
   animation: logo-halo-pulse 3s ease-in-out infinite;
   z-index: 0;
@@ -113,7 +144,12 @@ body {
 
 /* Brand name gradient text */
 .navbar-brand-text {
-  background: linear-gradient(90deg, #e2e8f0 0%, #a5b4fc 60%, #c4b5fd 100%);
+  background: linear-gradient(
+    90deg,
+    var(--co-fg) 0%,
+    rgb(165, 180, 252) 55%,
+    rgb(196, 181, 253) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -121,27 +157,64 @@ body {
 
 /* Active nav pill */
 .navbar-active-pill {
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: rgba(var(--co-brand-rgb), 0.15);
+  border: 1px solid rgba(var(--co-brand-rgb), 0.25);
   box-shadow:
-    0 0 12px rgba(99, 102, 241, 0.12),
+    0 0 12px rgba(var(--co-brand-rgb), 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-/* Live dot ring */
-.navbar-live-ring {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(52, 211, 153, 0.6);
-  animation: live-ring-pulse 2s ease-out infinite;
+/* KPI / elevated tile backgrounds (tokens) */
+.co-surface-tile-bg {
+  background: linear-gradient(163deg, var(--co-elev-1) 0%, var(--co-elev-2) 48%, var(--co-elev-3) 100%);
 }
 
-@keyframes live-ring-pulse {
-  0%   { transform: scale(1);   opacity: 0.8; }
-  70%  { transform: scale(2);   opacity: 0; }
-  100% { transform: scale(2);   opacity: 0; }
+.co-surface-data-bg {
+  background: linear-gradient(
+    to bottom,
+    var(--co-data-top) 0%,
+    rgba(var(--co-canvas-rgb), 0.99) 100%
+  );
+}
+
+.co-card-gloss {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.26;
+  mix-blend-mode: soft-light;
+  transition: opacity 0.5s ease;
+  background: linear-gradient(
+    to bottom right,
+    rgba(255, 255, 255, 0.05),
+    transparent,
+    rgba(var(--co-brand-mid-rgb), 0.035)
+  );
+}
+
+.group:hover .co-card-gloss {
+  opacity: 0.48;
+}
+
+/* Dashboard page hero (subtle brand wash) */
+.co-dash-hero {
+  position: absolute;
+  pointer-events: none;
+  inset: -12% -8% auto -8%;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse 70% 55% at 50% 0%,
+    rgba(var(--co-brand-rgb), 0.09) 0%,
+    rgba(var(--co-brand-mid-rgb), 0.05) 35%,
+    transparent 70%
+  );
+  z-index: 0;
+}
+
+.co-dash-hero-wrap {
+  position: relative;
+  z-index: 1;
 }
 
 /* ─── Surface cards (textura + capas) ─────────────────────────── */
@@ -160,7 +233,8 @@ body {
 
 .co-table-shell {
   border-radius: 0.75rem;
-  overflow: hidden;
+  overflow: auto;
+  max-height: min(68vh, 640px);
   background: linear-gradient(180deg, rgba(6, 10, 18, 0.55) 0%, rgba(4, 7, 12, 0.75) 100%);
 }
 
@@ -181,16 +255,22 @@ body {
 }
 
 .co-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
   padding: 0.65rem 1rem;
   font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgb(148, 163, 184);
+  color: var(--co-fg-muted);
   text-align: left;
   vertical-align: bottom;
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.22) 100%);
-  border-bottom: 1px solid rgba(51, 65, 85, 0.22);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.72) 0%, rgba(15, 23, 42, 0.88) 100%);
+  border-bottom: 1px solid rgba(51, 65, 85, 0.28);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* Cabeceras con subtítulo (p. ej. preview import) */
@@ -204,8 +284,12 @@ body {
 .co-table tbody td {
   padding: 0.7rem 1rem;
   vertical-align: middle;
-  border-bottom: 1px solid rgba(30, 41, 59, 0.28);
+  border-bottom: 1px solid var(--co-border-table);
   transition: background-color 0.14s ease;
+}
+
+.co-table tbody tr:nth-child(even):not(:hover):not(:focus-within) td {
+  background-color: rgba(255, 255, 255, 0.018);
 }
 
 .co-table tbody tr:last-child td {
@@ -213,11 +297,11 @@ body {
 }
 
 .co-table tbody tr:not(.co-table-expand):hover td {
-  background-color: rgba(99, 102, 241, 0.06);
+  background-color: rgba(var(--co-brand-rgb), 0.07);
 }
 
 .co-table tbody tr:not(.co-table-expand):focus-within td {
-  background-color: rgba(99, 102, 241, 0.08);
+  background-color: rgba(var(--co-brand-rgb), 0.1);
 }
 
 .co-table tbody tr.co-table-row-active td {

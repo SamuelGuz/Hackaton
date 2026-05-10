@@ -70,7 +70,7 @@ export function SurfaceCard({
     rounded,
     "border backdrop-blur-[2px]",
     ring,
-    "bg-[linear-gradient(163deg,rgba(17,24,39,0.93)_0%,rgba(10,14,22,0.9)_48%,rgba(6,8,14,0.96)_100%)]",
+    "co-surface-tile-bg",
     "shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_16px_48px_-18px_rgba(0,0,0,0.72)]",
     doLift
       ? "transition-shadow duration-300 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_24px_56px_-12px_rgba(0,0,0,0.78)]"
@@ -81,7 +81,7 @@ export function SurfaceCard({
     "surface-card-data group relative isolate overflow-hidden",
     rounded,
     "border border-slate-800/50",
-    "bg-gradient-to-b from-[#12151c]/[0.97] to-[#0a0c11]/[0.99]",
+    "co-surface-data-bg",
     "shadow-[0_20px_48px_-36px_rgba(0,0,0,0.75)]",
   ];
 
@@ -96,12 +96,7 @@ export function SurfaceCard({
       className={[...(isData ? dataClasses : elevatedClasses), className].join(" ")}
       {...rest}
     >
-      {!isData ? (
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.28] mix-blend-soft-light transition-opacity duration-500 group-hover:opacity-50 bg-gradient-to-br from-white/[0.05] via-transparent to-fuchsia-500/[0.03]"
-          aria-hidden
-        />
-      ) : null}
+      {!isData ? <div className="co-card-gloss" aria-hidden /> : null}
       <div
         className={[
           "pointer-events-none absolute inset-0 sc-card-noise",

@@ -33,8 +33,50 @@ export interface AccountSummary {
   currentNpsScore?: number | null;
   currentNpsCategory?: "detractor" | "passive" | "promoter" | null;
   lastNpsAt?: string | null;
-  // Contacto del champion — se llena cuando el usuario importa un Excel
+  // Campos extra que solo viven cuando el usuario importa un Excel
+  geography?: string;
+  seatsPurchased?: number;
+  seatsActive?: number;
+  signupDate?: string;
+  championRole?: string;
   contact?: ContactChannels;
+}
+
+export interface ImportAccountRow {
+  name: string;
+  industry: string;
+  size: string;
+  geography: string;
+  plan: string;
+  arr_usd: number;
+  seats_purchased: number;
+  seats_active: number;
+  signup_date: string;
+  contract_renewal_date: string;
+  champion_name: string;
+  champion_email: string;
+  champion_role: string;
+  csm_assigned: string;
+  churn_risk_score?: number | null;
+  expansion_score?: number | null;
+  health_status?: HealthStatus | null;
+}
+
+export interface ImportRequest {
+  accounts: ImportAccountRow[];
+}
+
+export interface ImportError {
+  rowIndex: number;
+  name: string;
+  message: string;
+}
+
+export interface ImportResponse {
+  inserted: number;
+  skipped: number;
+  errors: ImportError[];
+  insertedIds: string[];
 }
 
 export interface AccountsResponse {

@@ -34,19 +34,6 @@ function IconUpload() {
   );
 }
 
-/* ─── Pulsing Live Dot ─────────────────────────────────────────── */
-function LiveDot() {
-  return (
-    <div className="flex items-center gap-1.5">
-      <div className="relative flex items-center justify-center">
-        <span className="navbar-live-ring" />
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 relative z-10" />
-      </div>
-      <span className="text-[10px] font-bold tracking-widest text-emerald-400/80 uppercase">Live</span>
-    </div>
-  );
-}
-
 /* ─── Language Toggle ──────────────────────────────────────────── */
 function LangToggle() {
   const { lang, setLang } = useI18n();
@@ -193,8 +180,6 @@ export default function Navbar() {
 
         {/* Right side */}
         <div className="flex items-center gap-4">
-          <LiveDot />
-          <div className="w-px h-5 bg-slate-800" />
           <LangToggle />
         </div>
       </div>

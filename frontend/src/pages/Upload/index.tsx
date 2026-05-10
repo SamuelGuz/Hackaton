@@ -9,7 +9,8 @@ import { useToast } from "../../components/Toast";
 import { SurfaceCard } from "../../components/SurfaceCard";
 import { useI18n } from "../../context/I18nContext";
 import { motion } from "framer-motion";
-import { formatArr } from "../../utils/format";
+import { importAccounts } from "../../api/accounts";
+import type { AccountSummary, ImportAccountRow, ImportResponse } from "../../types";
 
 type Phase = "idle" | "parsing" | "map" | "success";
 
@@ -36,13 +37,15 @@ export default function Upload() {
   const navigate = useNavigate();
   const toast = useToast();
   const { t } = useI18n();
-  const { customAccounts, importedAt, setCustomAccounts, reset } = useDataContext();
+  const { customAccounts, importedAt, reset } = useDataContext();
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [file, setFile] = useState<File | null>(null);
   const [parsed, setParsed] = useState<ParsedSheet | null>(null);
   const [mapping, setMapping] = useState<Record<string, FieldKey>>({});
   const [dragOver, setDragOver] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResponse | null>(null);
 
   const STEPS = [
     { phase: "idle"    as Phase, label: t("up.step1") },
@@ -82,7 +85,29 @@ export default function Upload() {
     if (f) handleFile(f);
   }
 
-  function commit() {
+  function toImportRow(acc: AccountSummary): ImportAccountRow {
+    return {
+      name: acc.name,
+      industry: acc.industry,
+      size: acc.size,
+      geography: acc.geography ?? "latam",
+      plan: acc.plan,
+      arr_usd: acc.arrUsd,
+      seats_purchased: acc.seatsPurchased ?? 0,
+      seats_active: acc.seatsActive ?? 0,
+      signup_date: acc.signupDate ?? new Date().toISOString(),
+      contract_renewal_date: acc.contractRenewalDate,
+      champion_name: acc.championName,
+      champion_email: acc.contact?.email ?? "",
+      champion_role: acc.championRole ?? "Champion",
+      csm_assigned: acc.csm.name,
+      churn_risk_score: acc.churnRiskScore,
+      expansion_score: acc.expansionScore,
+      health_status: acc.healthStatus,
+    };
+  }
+
+  async function commit() {
     if (!parsed) return;
     const result = buildAccounts(parsed.rows, mapping);
     if (result.errors.length > 0) {
@@ -93,15 +118,40 @@ export default function Upload() {
       toast.push("No valid accounts generated", "error");
       return;
     }
-    setCustomAccounts(result.accounts);
-    toast.push(`${result.accounts.length} ${t("up.toastDone")}`, "success");
-    setPhase("success");
+
+    setImporting(true);
+    try {
+      const payload = { accounts: result.accounts.map(toImportRow) };
+      const response = await importAccounts(payload);
+      setImportResult(response);
+
+      const summary = `${response.inserted} importadas · ${response.skipped} duplicadas · ${response.errors.length} errores`;
+      const tone = response.errors.length > 0 ? "warning" : "success";
+      toast.push(summary, tone);
+
+      if (response.errors.length > 0) {
+        const firstTwo = response.errors
+          .slice(0, 2)
+          .map((e) => `Fila ${e.rowIndex + 2} (${e.name}): ${e.message}`)
+          .join(" · ");
+        toast.push(firstTwo, "error");
+      }
+
+      // Limpiar el cache local para que el dashboard lea desde la DB
+      reset();
+      setPhase("success");
+    } catch (e) {
+      toast.push(e instanceof Error ? e.message : "Import failed", "error");
+    } finally {
+      setImporting(false);
+    }
   }
 
   function startOver() {
     setFile(null);
     setParsed(null);
     setMapping({});
+    setImportResult(null);
     setPhase("idle");
   }
 
@@ -311,29 +361,62 @@ export default function Upload() {
             </button>
             <button
               onClick={commit}
-              disabled={requiredMissing.length > 0}
+              disabled={requiredMissing.length > 0 || importing}
               className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-md transition-colors"
             >
-              {t("up.import", { n: parsed.totalRows })}
-              <svg {...SVG} width="14" height="14"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              {importing ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  Subiendo…
+                </>
+              ) : (
+                <>
+                  {t("up.import", { n: parsed.totalRows })}
+                  <svg {...SVG} width="14" height="14"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </>
+              )}
             </button>
           </div>
         </>
       )}
 
       {/* Success */}
-      {phase === "success" && (
+      {phase === "success" && importResult && (
         <SurfaceCard weight="panel" tone="emerald" hoverLift={false} motionless className="p-12 text-center bg-[linear-gradient(165deg,rgba(6,78,59,0.12)_0%,rgba(10,14,22,0.92)_45%,rgba(6,8,14,0.96)_100%)]">
           <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
             <svg {...SVG} width="26" height="26" strokeWidth={3} className="text-emerald-300"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
           <h2 className="text-2xl font-bold text-white tracking-tight mb-2">
-            {t("up.successTitle", { n: customAccounts?.length ?? 0 })}
+            {importResult.inserted} cuentas importadas a la base
           </h2>
-          <p className="text-sm text-slate-400 mb-1">
-            {t("up.successArr")} <span className="text-slate-200 font-semibold">{formatArr(customAccounts?.reduce((s, a) => s + a.arrUsd, 0) ?? 0)}</span>
-          </p>
-          <p className="text-sm text-slate-400 mb-6">{t("up.successNote")}</p>
+          <div className="flex items-center justify-center gap-6 text-sm mb-4">
+            <div>
+              <p className="text-emerald-300 font-semibold tabular-nums">{importResult.inserted}</p>
+              <p className="text-xs text-slate-500">nuevas</p>
+            </div>
+            <div>
+              <p className="text-slate-300 font-semibold tabular-nums">{importResult.skipped}</p>
+              <p className="text-xs text-slate-500">duplicadas (omitidas)</p>
+            </div>
+            <div>
+              <p className={`font-semibold tabular-nums ${importResult.errors.length > 0 ? "text-rose-300" : "text-slate-300"}`}>{importResult.errors.length}</p>
+              <p className="text-xs text-slate-500">errores</p>
+            </div>
+          </div>
+
+          {importResult.errors.length > 0 && (
+            <div className="text-left max-w-xl mx-auto mb-6 px-4 py-3 bg-rose-500/10 border border-rose-500/30 rounded-md">
+              <p className="text-xs font-semibold text-rose-200 mb-1.5">Filas con error:</p>
+              <ul className="space-y-0.5 max-h-32 overflow-y-auto">
+                {importResult.errors.map((err, i) => (
+                  <li key={i} className="text-xs text-rose-300">
+                    · Fila {err.rowIndex + 2} ({err.name || "sin nombre"}): {err.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="flex items-center justify-center gap-2">
             <button onClick={() => navigate("/")} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-md transition-colors">
               {t("up.viewDash")}

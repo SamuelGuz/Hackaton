@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAccounts, type AccountFilter } from "../api/accounts";
 import { useDataContext } from "../context/DataContext";
 import type { AccountSummary } from "../types";
@@ -15,6 +15,12 @@ export function useAccounts(filter: AccountFilter, search: string) {
   const [all, setAll] = useState<AccountSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
+  const [fetchNonce, setFetchNonce] = useState(0);
+
+  const refetch = useCallback(() => {
+    setFetchNonce((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     // Si hay data importada por el usuario, la usamos directamente.
@@ -22,6 +28,7 @@ export function useAccounts(filter: AccountFilter, search: string) {
       setAll(customAccounts);
       setLoading(false);
       setError(null);
+      setLastFetchedAt(new Date());
       return;
     }
 
@@ -29,10 +36,13 @@ export function useAccounts(filter: AccountFilter, search: string) {
     setLoading(true);
     setError(null);
     getAccounts("all")
-      .then((res) => setAll(res.accounts))
+      .then((res) => {
+        setAll(res.accounts);
+        setLastFetchedAt(new Date());
+      })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [customAccounts]);
+  }, [customAccounts, fetchNonce]);
 
   const filtered = useMemo(() => {
     let list = all;
@@ -61,5 +71,5 @@ export function useAccounts(filter: AccountFilter, search: string) {
     };
   }, [all]);
 
-  return { accounts: filtered, stats, loading, error };
+  return { accounts: filtered, stats, loading, error, lastFetchedAt, refetch };
 }

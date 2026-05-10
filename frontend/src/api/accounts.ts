@@ -1,6 +1,12 @@
 import { apiFetch, USE_MOCK } from "./client";
 import { mockAccountsResponse, mockAccountDetail, mockTimeline } from "../mocks/accounts";
-import type { AccountsResponse, AccountDetail, TimelineResponse } from "../types";
+import type {
+  AccountsResponse,
+  AccountDetail,
+  TimelineResponse,
+  ImportRequest,
+  ImportResponse,
+} from "../types";
 
 export type AccountFilter = "all" | "at_risk" | "expansion";
 
@@ -33,4 +39,19 @@ export async function getAccount(id: string): Promise<AccountDetail> {
 export async function getTimeline(id: string): Promise<TimelineResponse> {
   if (USE_MOCK) return mockTimeline;
   return apiFetch<TimelineResponse>(`/accounts/${id}/timeline`);
+}
+
+export async function importAccounts(payload: ImportRequest): Promise<ImportResponse> {
+  if (USE_MOCK) {
+    return {
+      inserted: payload.accounts.length,
+      skipped: 0,
+      errors: [],
+      insertedIds: payload.accounts.map((_, i) => `mock-${Date.now()}-${i}`),
+    };
+  }
+  return apiFetch<ImportResponse>("/accounts/import", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
