@@ -75,10 +75,10 @@ def post_dispatch_intervention(payload: DispatchRequest) -> DispatchResponse:
         raise HTTPException(status_code=404, detail="intervention_not_found")
 
     status = intervention.get("status")
-    if status not in ("pending", "approved"):
+    if status not in ("pending", "approved", "pending_approval"):
         raise HTTPException(
             status_code=409,
-            detail=f"intervention status is {status!r}; must be 'pending' or 'approved'",
+            detail=f"intervention status is {status!r}; must be 'pending', 'approved' or 'pending_approval' to dispatch",
         )
 
     channel = intervention.get("channel")

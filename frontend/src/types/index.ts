@@ -235,9 +235,13 @@ export interface ChannelDelivery {
   status: "pending" | "sent" | "delivered" | "failed";
 }
 
-export interface DispatchResponse {
-  dispatched: boolean;
-  channels: ChannelDelivery[];
+export interface DispatchSession {
+  sessionMode?: "convai";
+  signedUrl?: string;
+}
+
+export interface DispatchResponse extends DispatchSession {
+  deliveries: ChannelDelivery[];
 }
 
 export interface Playbook {

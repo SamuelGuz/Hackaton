@@ -1,5 +1,10 @@
 import { apiFetch, USE_MOCK } from "./client";
-import type { ChannelDelivery, DispatchPayload, InterventionChannel } from "../types";
+import type {
+  ChannelDelivery,
+  DispatchPayload,
+  DispatchResponse,
+  InterventionChannel,
+} from "../types";
 
 export type DeliveryListener = (deliveries: ChannelDelivery[]) => void;
 
@@ -16,7 +21,7 @@ const MOCK_TIMING: Record<InterventionChannel, number> = {
 export async function dispatchIntervention(
   payload: DispatchPayload,
   onProgress?: DeliveryListener
-): Promise<ChannelDelivery[]> {
+): Promise<DispatchResponse> {
   if (USE_MOCK) {
     // Simulamos los 4 canales aunque solo se haya pedido uno (es el wow del demo)
     const deliveries: ChannelDelivery[] = ALL_CHANNELS.map((channel) => ({
@@ -44,7 +49,14 @@ export async function dispatchIntervention(
       )
     );
 
-    return deliveries;
+    return {
+      deliveries,
+      sessionMode: payload.channel === "voice_call" ? "convai" : undefined,
+      signedUrl:
+        payload.channel === "voice_call"
+          ? "wss://api.elevenlabs.io/v1/convai/conversation?agent_id=demo&conversation_signature=mock"
+          : undefined,
+    };
   }
 
   // El backend solo despacha un canal a la vez y devuelve { intervention_id, status, channel, ... }
@@ -56,9 +68,11 @@ export async function dispatchIntervention(
   onProgress?.([...initial]);
 
   const res = await apiFetch<{
-    intervention_id?: string;
+    interventionId?: string;
     status: "dispatched" | "sent" | "delivered" | "failed";
     channel: InterventionChannel;
+    sessionMode?: "convai";
+    signedUrl?: string;
     error?: string;
   }>("/dispatch-intervention", {
     method: "POST",
@@ -86,5 +100,9 @@ export async function dispatchIntervention(
   if (res.status === "failed") {
     throw new Error(res.error || "dispatch_failed");
   }
-  return final;
+  return {
+    deliveries: final,
+    sessionMode: res.sessionMode,
+    signedUrl: res.signedUrl,
+  };
 }
