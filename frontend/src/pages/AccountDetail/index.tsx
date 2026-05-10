@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAccount } from "../../hooks/useAccount";
 import { useInterventions } from "../../hooks/useInterventions";
 import { useHealthHistory } from "../../hooks/useHealthHistory";
