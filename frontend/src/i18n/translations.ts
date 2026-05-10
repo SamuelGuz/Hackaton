@@ -279,6 +279,8 @@ const TRANSLATIONS = {
   "up.selectFile":  { es: "Seleccionar archivo",  en: "Select file" },
   "up.downloadTpl": { es: "Descargar plantilla",  en: "Download template" },
   "up.local":       { es: "Datos procesados localmente · cero upload a servidor", en: "Data processed locally · zero server upload" },
+  "up.or":          { es: "o",             en: "or" },
+  "up.manualBtn":   { es: "Crear una cuenta nueva sin archivo", en: "Create a new account without a file" },
   "up.parsing":     { es: "Procesando",    en: "Processing" },
   "up.mapTitle":    { es: "Mapeo de columnas",   en: "Column mapping" },
   "up.mapSubtitle": { es: "Detectamos {n} columnas en \"{sheet}\". Confirmá o ajustá las sugerencias.", en: "We detected {n} columns in \"{sheet}\". Confirm or adjust the suggestions." },
