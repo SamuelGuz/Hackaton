@@ -4,7 +4,8 @@ import type { InterventionRecommendation } from "../types";
 
 export async function getIntervention(
   accountId: string,
-  triggerReason = "churn_risk_high"
+  triggerReason = "churn_risk_high",
+  signal?: AbortSignal
 ): Promise<InterventionRecommendation> {
   if (USE_MOCK) {
     // simula latencia leve para feedback realista
@@ -14,5 +15,6 @@ export async function getIntervention(
   return apiFetch<InterventionRecommendation>(`/agents/intervention/${accountId}`, {
     method: "POST",
     body: JSON.stringify({ trigger_reason: triggerReason }),
+    signal,
   });
 }

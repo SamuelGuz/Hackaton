@@ -9,7 +9,7 @@ import { SkeletonRow, SkeletonCard } from "../../components/Skeleton";
 import { SurfaceCard } from "../../components/SurfaceCard";
 import type { SurfaceTone } from "../../components/SurfaceCard";
 import { Sparkline } from "../../components/Sparkline";
-import { FilterPillGroup } from "../../components/FilterPillGroup";
+import { Select, type SelectOption } from "../../components/Select";
 import { humanizeI18n, formatArr, formatRenewal } from "../../utils/format";
 import { exportAccountsCsv, exportAccountsXlsx } from "../../utils/exportAccounts";
 import type { AccountFilter } from "../../api/accounts";
@@ -64,10 +64,17 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { t, lang } = useI18n();
   const [activeFilter, setActiveFilter] = useState<AccountFilter>("all");
+  const [accountNumberFilter, setAccountNumberFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [exportOpen, setExportOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
-  const { accounts, stats, loading, error, lastFetchedAt, refetch } = useAccounts(activeFilter, search);
+  const { accounts, accountNumbers, stats, loading, error, lastFetchedAt, refetch } =
+    useAccounts(activeFilter, search, accountNumberFilter);
+
+  // Al cambiar el estado de salud, el select de Nº cuenta debe partir en “todas” (lista nueva viene de otra query).
+  useEffect(() => {
+    setAccountNumberFilter("all");
+  }, [activeFilter]);
 
   // Cierra el menú de exportación al hacer click fuera o presionar Escape.
   useEffect(() => {
@@ -95,13 +102,18 @@ export default function Dashboard() {
     setExportOpen(false);
   };
 
-  const FILTERS: { label: string; value: AccountFilter; count: number; dotClass?: string }[] = [
-    { label: t("dash.filterAll"),      value: "all",       count: stats.total },
-    { label: t("dash.filterCritical"), value: "critical",  count: stats.critical,  dotClass: "bg-red-400" },
-    { label: t("dash.filterRisk"),     value: "at_risk",   count: stats.atRisk,    dotClass: "bg-orange-400" },
-    { label: t("dash.filterStable"),   value: "stable",    count: stats.stable,    dotClass: "bg-yellow-400" },
-    { label: t("dash.filterHealthy"),  value: "healthy",   count: stats.healthy,   dotClass: "bg-green-400" },
-    { label: t("dash.filterExpand"),   value: "expanding", count: stats.expansion, dotClass: "bg-blue-400" },
+  const STATUS_OPTIONS: SelectOption<AccountFilter>[] = [
+    { value: "all",       label: t("dash.filterAll"),      hint: stats.total,     dotClass: "bg-slate-500" },
+    { value: "critical",  label: t("dash.filterCritical"), hint: stats.critical,  dotClass: "bg-red-400" },
+    { value: "at_risk",   label: t("dash.filterRisk"),     hint: stats.atRisk,    dotClass: "bg-orange-400" },
+    { value: "stable",    label: t("dash.filterStable"),   hint: stats.stable,    dotClass: "bg-yellow-400" },
+    { value: "healthy",   label: t("dash.filterHealthy"),  hint: stats.healthy,   dotClass: "bg-green-400" },
+    { value: "expanding", label: t("dash.filterExpand"),   hint: stats.expansion, dotClass: "bg-blue-400" },
+  ];
+
+  const ACCOUNT_OPTIONS: SelectOption<string>[] = [
+    { value: "all", label: t("dash.filterAccountAll"), hint: accountNumbers.length },
+    ...accountNumbers.map((n) => ({ value: n, label: n })),
   ];
 
   const syncTime =
@@ -118,6 +130,7 @@ export default function Dashboard() {
 
   const resetFilters = () => {
     setActiveFilter("all");
+    setAccountNumberFilter("all");
     setSearch("");
   };
 
@@ -165,33 +178,22 @@ export default function Dashboard() {
       {/* Filter + search */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <FilterPillGroup
-            layoutId="co-pill-dash-accounts"
+          <Select
+            label={t("dash.filterStatus")}
             value={activeFilter}
             onChange={setActiveFilter}
-            options={FILTERS.map((f) => {
-              const active = activeFilter === f.value;
-              return {
-                value: f.value,
-                label: (
-                  <span className="flex items-center gap-1.5">
-                    {f.dotClass && (
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${f.dotClass}`} />
-                    )}
-                    {f.label}
-                  </span>
-                ),
-                suffix: (
-                  <span
-                    className={`text-[11px] px-1.5 py-0.5 rounded tabular-nums transition-colors duration-200 ${
-                      active ? "bg-slate-900 text-slate-300" : "bg-slate-800 text-slate-500"
-                    }`}
-                  >
-                    {f.count}
-                  </span>
-                ),
-              };
-            })}
+            options={STATUS_OPTIONS}
+            minWidthClass="min-w-[13rem]"
+          />
+          <Select
+            label={t("dash.filterAccount")}
+            value={accountNumberFilter}
+            onChange={setAccountNumberFilter}
+            options={ACCOUNT_OPTIONS}
+            minWidthClass="min-w-[15rem]"
+            searchable
+            searchPlaceholder={t("dash.filterAccountSearch")}
+            emptyText={t("dash.filterAccountEmpty")}
           />
         </div>
         <div className="flex items-center gap-2">

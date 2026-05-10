@@ -867,7 +867,7 @@ Historia de cambios de un playbook (para mostrar evolución).
 
 #### `POST /dispatch-intervention`
 
-**Endpoint crítico.** Lanza la intervención al canal real vía Make.
+**Endpoint crítico.** Lanza la intervención al canal real. En `voice_call` demo usa sesión ConvAI (sin Make/Twilio).
 
 **Body:**
 
@@ -892,7 +892,8 @@ Historia de cambios de un playbook (para mostrar evolución).
   "intervention_id": "uuid",
   "status": "dispatched",
   "channel": "voice_call",
-  "make_execution_id": "make-exec-12345",
+  "session_mode": "convai",
+  "signed_url": "wss://api.elevenlabs.io/v1/convai/conversation?agent_id=agent_xxx&conversation_signature=cvtkn_xxx",
   "estimated_delivery_seconds": 15
 }
 ```
@@ -902,9 +903,7 @@ Historia de cambios de un playbook (para mostrar evolución).
 ```json
 {
   "error": "dispatch_failed",
-  "message": "ElevenLabs API timeout",
-  "fallback_used": true,
-  "fallback_audio_url": "https://..."
+  "message": "ElevenLabs ConvAI signed URL error"
 }
 ```
 
@@ -1356,11 +1355,9 @@ def test_intervention_engine_uses_playbook():
 
 **Workflow:**
 
-1. Recibe webhook con `audio_url` (audio ya generado por ElevenLabs antes del dispatch)
-2. Llama a Twilio (o servicio similar) con TwiML que reproduce el audio
-3. Callback con resultado
-
-**NOTA:** la generación del audio con ElevenLabs ocurre ANTES en `/dispatch-intervention` (FastAPI llama ElevenLabs, sube el MP3 a Supabase Storage, y pasa la URL a Make).
+1. FastAPI solicita `signed_url` a ElevenLabs ConvAI (`get_signed_url`) al despachar `voice_call`.
+2. Frontend se conecta por WebSocket usando `signed_url` y ejecuta la conversación en página.
+3. Backend puede recibir callback/estado final y/o resumen de conversación para cerrar el loop.
 
 ---
 

@@ -87,6 +87,7 @@ export default function Upload() {
 
   function toImportRow(acc: AccountSummary): ImportAccountRow {
     return {
+      account_number: acc.accountNumber ?? null,
       name: acc.name,
       industry: acc.industry,
       size: acc.size,

@@ -8,14 +8,28 @@ import { RiskBadge } from "../../components/RiskBadge";
 import { Timeline } from "../../components/Timeline";
 import { ScoreBar } from "../../components/ScoreBar";
 import { InterventionModal } from "../../components/InterventionModal";
+import { VoiceCallPanel } from "../../components/VoiceCallPanel";
 import { SurfaceCard } from "../../components/SurfaceCard";
 import { humanizeI18n, formatArr, formatRenewal, daysUntil } from "../../utils/format";
+import type { InterventionStatus } from "../../types";
 
 const SVG = {
   width: 16, height: 16, viewBox: "0 0 24 24",
   fill: "none", stroke: "currentColor",
   strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
 };
+
+// Estados no terminales: bloquean lanzar una intervención nueva.
+// Terminales: `rejected`, `failed` o cualquiera con outcome != null.
+// `responded` se considera abierto hasta que un CSM registre el outcome.
+const OPEN_INTERVENTION_STATUSES: InterventionStatus[] = [
+  "pending_approval",
+  "pending",
+  "sent",
+  "delivered",
+  "opened",
+  "responded",
+];
 
 function MetricBlock({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -31,18 +45,32 @@ export default function AccountDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { account, events, loading, error } = useAccount(id);
-  const { interventions: accountInterventions } = useInterventions(id ? { accountId: id } : {});
+  const {
+    interventions: accountInterventions,
+    loading: interventionsLoading,
+    refetch: refetchInterventions,
+  } = useInterventions(id ? { accountId: id } : {});
   const { t } = useI18n();
   const [modalOpen, setModalOpen] = useState(false);
+  const [voiceSession, setVoiceSession] = useState<{
+    interventionId: string;
+    signedUrl: string;
+  } | null>(null);
 
   // Una intervención está "activa" si todavía no terminó su ciclo (no resuelta, no rechazada).
-  // status pending_approval, pending, sent, delivered, opened → bloquean nuevas.
+  // Mientras la lista carga devolvemos `null` para evitar abrir el modal en un falso "limpio"
+  // (race que dispara un POST /agents/intervention y duplica fila).
+  const interventionsReady = !interventionsLoading;
   const activeIntervention = useMemo(() => {
-    return accountInterventions.find((i) =>
-      ["pending_approval", "pending", "sent", "delivered", "opened"].includes(i.status)
-    ) ?? null;
-  }, [accountInterventions]);
+    if (!interventionsReady) return null;
+    return (
+      accountInterventions.find((i) =>
+        OPEN_INTERVENTION_STATUSES.includes(i.status)
+      ) ?? null
+    );
+  }, [accountInterventions, interventionsReady]);
   const hasActiveIntervention = activeIntervention !== null;
+  const ctaGateLoading = !interventionsReady;
 
   const severityClass = (sev: string) =>
     sev === "high"   ? "bg-rose-500/15 text-rose-300 border-rose-500/30" :
@@ -137,6 +165,14 @@ export default function AccountDetail() {
         </SurfaceCard>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+          {voiceSession && (
+            <VoiceCallPanel
+              interventionId={voiceSession.interventionId}
+              signedUrl={voiceSession.signedUrl}
+              onClose={() => setVoiceSession(null)}
+            />
+          )}
+
           {/* Crystal Ball */}
           <SurfaceCard tone="rose" motionIndex={2} className="p-5 bg-[linear-gradient(155deg,rgba(190,18,60,0.08)_0%,rgba(10,12,18,0.92)_55%,rgba(6,8,14,0.96)_100%)]">
             <div className="flex items-center gap-2 mb-3">
@@ -199,7 +235,18 @@ export default function AccountDetail() {
           </SurfaceCard>
 
           {/* CTA */}
-          {hasActiveIntervention ? (
+          {ctaGateLoading ? (
+            <div className="w-full">
+              <button
+                disabled
+                aria-busy="true"
+                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-slate-800/60 border border-slate-700/60 text-slate-400 text-sm font-semibold rounded-xl cursor-wait"
+              >
+                <span className="w-3.5 h-3.5 border-2 border-slate-600 border-t-slate-300 rounded-full animate-spin" />
+                {t("detail.ctaLoading")}
+              </button>
+            </div>
+          ) : hasActiveIntervention ? (
             <div className="w-full">
               <button
                 disabled
@@ -246,7 +293,12 @@ export default function AccountDetail() {
           accountId={account.id}
           accountName={account.name}
           champion={account.champion}
-          onClose={() => setModalOpen(false)}
+          onClose={() => {
+            setModalOpen(false);
+            refetchInterventions();
+          }}
+          onLaunched={refetchInterventions}
+          onVoiceSessionStart={(payload) => setVoiceSession(payload)}
         />
       )}
     </div>
