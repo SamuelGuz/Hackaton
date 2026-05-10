@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAccount } from "../../hooks/useAccount";
 import { useInterventions } from "../../hooks/useInterventions";
@@ -10,6 +10,7 @@ import { ScoreBar } from "../../components/ScoreBar";
 import { InterventionModal } from "../../components/InterventionModal";
 import { SurfaceCard } from "../../components/SurfaceCard";
 import { humanizeI18n, formatArr, formatRenewal, daysUntil } from "../../utils/format";
+import { isOpenInterventionStatus } from "../../constants/interventions";
 
 const SVG = {
   width: 16, height: 16, viewBox: "0 0 24 24",
@@ -31,18 +32,22 @@ export default function AccountDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { account, events, loading, error } = useAccount(id);
-  const { interventions: accountInterventions } = useInterventions(id ? { accountId: id } : {});
+  const { interventions: accountInterventions, loading: interventionsLoading } = useInterventions(
+    id ? { accountId: id } : {}
+  );
   const { t } = useI18n();
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Una intervención está "activa" si todavía no terminó su ciclo (no resuelta, no rechazada).
-  // status pending_approval, pending, sent, delivered, opened → bloquean nuevas.
   const activeIntervention = useMemo(() => {
-    return accountInterventions.find((i) =>
-      ["pending_approval", "pending", "sent", "delivered", "opened"].includes(i.status)
-    ) ?? null;
+    return accountInterventions.find((i) => isOpenInterventionStatus(i.status)) ?? null;
   }, [accountInterventions]);
   const hasActiveIntervention = activeIntervention !== null;
+
+  useEffect(() => {
+    if (!interventionsLoading && hasActiveIntervention && modalOpen) {
+      setModalOpen(false);
+    }
+  }, [interventionsLoading, hasActiveIntervention, modalOpen]);
 
   const severityClass = (sev: string) =>
     sev === "high"   ? "bg-rose-500/15 text-rose-300 border-rose-500/30" :
@@ -198,8 +203,13 @@ export default function AccountDetail() {
             </p>
           </SurfaceCard>
 
-          {/* CTA */}
-          {hasActiveIntervention ? (
+          {/* CTA — wait for interventions list so we do not open the modal (POST creates a row) on stale empty state */}
+          {interventionsLoading ? (
+            <div className="w-full space-y-2">
+              <div className="h-[46px] w-full rounded-xl bg-slate-800/60 animate-pulse" aria-hidden />
+              <div className="h-3 w-2/3 mx-auto rounded bg-slate-800/40 animate-pulse" aria-hidden />
+            </div>
+          ) : hasActiveIntervention ? (
             <div className="w-full">
               <button
                 disabled

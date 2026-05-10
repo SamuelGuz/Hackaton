@@ -35,6 +35,18 @@ TIMEOUT_SECONDS = 30
 
 COOL_OFF_HOURS = 72
 PLAYBOOK_REPEAT_BLOCK_DAYS = 14
+
+# Bloqueo duro: no crear una nueva fila si ya hay una intervención en ciclo (CONTRACTS.md `interventions.status`).
+_OPEN_INTERVENTION_STATUSES = frozenset(
+    {
+        "pending_approval",
+        "pending",
+        "sent",
+        "delivered",
+        "opened",
+        "responded",
+    }
+)
 PLAYBOOK_TOP_K = 5
 PLAYBOOK_OVERRIDE_MIN_SUCCESS = 0.70
 PLAYBOOK_OVERRIDE_MIN_USES = 5
@@ -222,6 +234,25 @@ def _load_recent_conversations(account_id: str, limit: int = 5) -> list[dict[str
 # ---------------------------------------------------------------------------
 # Cool-off / repeat guard
 # ---------------------------------------------------------------------------
+
+
+def _assert_no_open_intervention(account_id: str) -> None:
+    """Raise CoolOffActive if an in-flight intervention row already exists."""
+    sb = get_supabase()
+    res = (
+        sb.table("interventions")
+        .select("id,status")
+        .eq("account_id", account_id)
+        .in_("status", list(_OPEN_INTERVENTION_STATUSES))
+        .limit(1)
+        .execute()
+    )
+    rows = getattr(res, "data", None) or []
+    if rows:
+        st = rows[0].get("status")
+        raise CoolOffActive(
+            f"open intervention exists for account_id={account_id}, status={st!s}"
+        )
 
 
 def _parse_ts(raw: Any) -> datetime | None:
@@ -792,6 +823,7 @@ def run_intervention(account_id: str, trigger_reason: str) -> InterventionOutput
     """
     account = _load_account(account_id)
     snapshot = _load_snapshot(account_id)
+    _assert_no_open_intervention(account_id)
     last_interventions = _load_recent_interventions(account_id)
 
     # Compute candidate playbooks first so we can apply the same-account
