@@ -3,5 +3,7 @@ uvicorn
 pydantic
 python-dotenv
 supabase
-anthropic
+openai>=1.50
 httpx
+pydantic>=2
+pytest
