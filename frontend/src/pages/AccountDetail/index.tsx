@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAccount } from "../../hooks/useAccount";
 import { useInterventions } from "../../hooks/useInterventions";
@@ -14,7 +13,7 @@ import { InterventionModal } from "../../components/InterventionModal";
 import { VoiceCallPanel } from "../../components/VoiceCallPanel";
 import { SurfaceCard } from "../../components/SurfaceCard";
 import { humanizeI18n, formatArr, formatRenewal, daysUntil } from "../../utils/format";
-import type { InterventionStatus } from "../../types";
+import { isOpenInterventionStatus } from "../../constants/interventions";
 
 const SVG = {
   width: 16, height: 16, viewBox: "0 0 24 24",
@@ -85,6 +84,12 @@ export default function AccountDetail() {
   }, [accountInterventions, interventionsReady]);
   const hasActiveIntervention = activeIntervention !== null;
   const ctaGateLoading = !interventionsReady;
+
+  useEffect(() => {
+    if (!interventionsLoading && hasActiveIntervention && modalOpen) {
+      setModalOpen(false);
+    }
+  }, [interventionsLoading, hasActiveIntervention, modalOpen]);
 
   const severityClass = (sev: string) =>
     sev === "high"   ? "bg-rose-500/15 text-rose-300 border-rose-500/30" :

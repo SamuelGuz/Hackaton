@@ -5,9 +5,8 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 
-logger = logging.getLogger(__name__)
-
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from supabase import create_client, Client
 
@@ -17,6 +16,19 @@ from . import make_webhooks
 router = APIRouter(prefix="/dispatch-intervention", tags=["dispatch"])
 
 _AUDIO_BUCKET = "audio"
+
+
+@router.get("/whatsapp/verify", response_class=PlainTextResponse)
+def whatsapp_verify(
+    hub_mode: str = Query(alias="hub.mode", default=""),
+    hub_verify_token: str = Query(alias="hub.verify_token", default=""),
+    hub_challenge: str = Query(alias="hub.challenge", default=""),
+):
+    """Meta webhook verification. Set WHATSAPP_VERIFY_TOKEN in .env."""
+    expected = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
+    if hub_mode == "subscribe" and hub_verify_token == expected:
+        return hub_challenge
+    raise HTTPException(status_code=403, detail="Verification failed")
 
 
 def _sb() -> Client:
@@ -590,6 +602,109 @@ def receive_conversation(body: ConversationPayload):
             _apply_playbook_outcome(sb, playbook_id, inferred_outcome)
 
     return {"received": True, "account_id": account_id}
+
+
+class InboundMessageRequest(BaseModel):
+    from_phone: str
+    message: str
+    received_at: Optional[str] = None
+
+
+@router.post("/inbound-message")
+def receive_inbound_message(body: InboundMessageRequest):
+    """
+    Recibe un WhatsApp inbound, guarda en conversations y devuelve
+    el historial completo formateado para Claude (roles: user/assistant).
+    n8n llama esto cuando el cliente responde; usa el historial para generar
+    la siguiente respuesta de la conversación.
+    """
+    sb = _sb()
+    now = body.received_at or _now()
+
+    # Normalizar teléfono: asegurar formato E.164
+    phone = body.from_phone.strip()
+    if not phone.startswith("+"):
+        phone = "+" + phone
+
+    # Buscar intervención activa por número de teléfono del champion
+    # Buscamos en accounts por champion_phone y tomamos la intervención más reciente
+    # que esté en estado activo (sent, delivered, responded)
+    acc_res = (
+        sb.table("accounts")
+        .select("id,name,champion_name,champion_phone")
+        .eq("champion_phone", phone)
+        .limit(1)
+        .execute()
+    )
+    account = (acc_res.data or [None])[0]
+
+    if not account:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "account_not_found", "message": f"No account found for phone {phone}"},
+        )
+
+    account_id = account["id"]
+
+    # Intervención más reciente activa para esta cuenta por WhatsApp
+    inv_res = (
+        sb.table("interventions")
+        .select("id,message_body,status,channel")
+        .eq("account_id", account_id)
+        .eq("channel", "whatsapp")
+        .in_("status", ["sent", "delivered", "responded"])
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    intervention = (inv_res.data or [None])[0]
+
+    if not intervention:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "intervention_not_found", "message": "No active whatsapp intervention for this number"},
+        )
+
+    intervention_id = intervention["id"]
+
+    # Guardar el mensaje inbound en conversations
+    sb.table("conversations").insert({
+        "account_id": account_id,
+        "channel": "whatsapp",
+        "direction": "inbound",
+        "participants": [phone],
+        "content": body.message,
+        "occurred_at": now,
+    }).execute()
+
+    # Marcar intervención como responded
+    _update_intervention(intervention_id, {"status": "responded", "responded_at": now})
+
+    # Construir historial para Claude
+    # Primer turno: el mensaje que envió el sistema (outbound)
+    history = [{"role": "assistant", "content": intervention["message_body"]}]
+
+    # Conversaciones previas guardadas (inbound + outbound), ordenadas
+    conv_res = (
+        sb.table("conversations")
+        .select("direction,content,occurred_at")
+        .eq("account_id", account_id)
+        .order("occurred_at", desc=False)
+        .execute()
+    )
+    for conv in conv_res.data or []:
+        role = "user" if conv["direction"] == "inbound" else "assistant"
+        history.append({"role": role, "content": conv["content"]})
+
+    return {
+        "intervention_id": intervention_id,
+        "account_id": account_id,
+        "account_name": account["name"],
+        "champion_name": account["champion_name"],
+        "to_phone": phone,
+        "conversation_history": history,
+        "turn": len(history),
+    }
 
 
 @router.get("/approve")

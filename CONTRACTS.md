@@ -789,6 +789,14 @@ Genera (sin lanzar) una intervención recomendada para la cuenta.
 }
 ```
 
+**Response 409** — no se inserta fila en `interventions`. Casos típicos:
+
+- No existe `account_health_snapshot` para la cuenta: ejecutar antes Crystal Ball / Expansion (`detail` describe el bloqueo).
+- Cool-off u otras reglas temporales (p. ej. 72h, bloqueo de playbook 14 días): mensaje en `detail` (texto).
+- **Intervención abierta:** ya existe una fila para `account_id` con `status` en `pending_approval`, `pending`, `sent`, `delivered`, `opened` o `responded` (defensa en profundidad; el frontend también debe bloquear el CTA).
+
+**Coordinación de capas:** este endpoint es responsabilidad **Persona 2** (agente); cambios que afecten UI o automatización requieren alineación con **Persona 4** / **Persona 3** y actualización de este documento.
+
 ---
 
 ### 2.3 Closed-Loop (Persona 2)
