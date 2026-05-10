@@ -76,15 +76,22 @@ def end_twilio_call(call_sid: str) -> None:
 
 
 def build_twiml(intervention_id: str) -> str:
-    """Return TwiML that connects Twilio audio to our websocket bridge."""
-    query = urlencode({"intervention_id": intervention_id})
+    """Return TwiML that connects Twilio audio to our websocket bridge.
+
+    `intervention_id` se envia como `<Parameter>` (Twilio lo incluye en el
+    `customParameters` del primer mensaje `start`). Asi no dependemos de la
+    query string del URL, que algunos proxies/clients pueden perder.
+    """
     stream_url = (
-        f"{_public_ws_base_url()}/api/v1/dispatch-intervention/twilio/media-stream?{query}"
+        f"{_public_ws_base_url()}/api/v1/dispatch-intervention/twilio/media-stream"
     )
+    safe_id = (intervention_id or "").replace('"', "&quot;")
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
         "<Response><Connect>"
-        f'<Stream url="{stream_url}" />'
+        f'<Stream url="{stream_url}">'
+        f'<Parameter name="intervention_id" value="{safe_id}" />'
+        "</Stream>"
         "</Connect></Response>"
     )
 
@@ -138,12 +145,79 @@ def _update_intervention(intervention_id: str, data: dict[str, Any]) -> None:
     _sb().table("interventions").update(data).eq("id", intervention_id).execute()
 
 
-async def bridge(twilio_ws: WebSocket, intervention_id: str) -> None:
-    """Bridge Twilio media websocket with ElevenLabs conversation websocket."""
+async def bridge(twilio_ws: WebSocket) -> None:
+    """Bridge Twilio media websocket with ElevenLabs conversation websocket.
+
+    El `intervention_id` se obtiene del primer mensaje `start` que envia Twilio
+    (en `start.customParameters`). El handshake WS no requiere query string.
+    """
+    logger.info(
+        "[twilio-bridge] WS connect path=%s qs=%r client=%s",
+        twilio_ws.scope.get("path"),
+        twilio_ws.scope.get("query_string"),
+        twilio_ws.client,
+    )
     await twilio_ws.accept()
+    logger.info("[twilio-bridge] WS accepted, waiting for Twilio start event")
+
+    intervention_id: str = ""
     stream_sid: str | None = None
-    dyn = _fetch_dynamic_vars(intervention_id)
-    signed_url = get_convai_signed_url(os.environ.get("ELEVENLABS_AGENT_ID"))
+    call_sid: str | None = None
+
+    while True:
+        raw = await twilio_ws.receive_text()
+        try:
+            first = json.loads(raw)
+        except Exception:  # noqa: BLE001
+            logger.warning("[twilio-bridge] non-JSON message before start: %r", raw[:200])
+            continue
+        ev = first.get("event")
+        logger.info("[twilio-bridge] pre-start event=%s keys=%s", ev, list(first.keys()))
+        if ev == "connected":
+            continue
+        if ev == "start":
+            start_data = first.get("start", {}) or {}
+            stream_sid = start_data.get("streamSid")
+            call_sid = start_data.get("callSid")
+            params = start_data.get("customParameters", {}) or {}
+            intervention_id = str(
+                params.get("intervention_id")
+                or first.get("customParameters", {}).get("intervention_id", "")
+                or ""
+            )
+            logger.info(
+                "[twilio-bridge] start streamSid=%s callSid=%s intervention_id=%s params=%s",
+                stream_sid,
+                call_sid,
+                intervention_id,
+                params,
+            )
+            break
+        # Otros eventos pre-start se ignoran (e.g., 'mark')
+
+    if not intervention_id:
+        logger.error(
+            "[twilio-bridge] start without intervention_id; closing. customParameters=%s",
+            params if "params" in locals() else None,
+        )
+        await twilio_ws.close(code=1008)
+        return
+
+    try:
+        dyn = _fetch_dynamic_vars(intervention_id)
+        logger.info("[twilio-bridge] dynamic_vars loaded for %s: keys=%s", intervention_id, list(dyn.keys()))
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("[twilio-bridge] failed to load dynamic vars: %s", exc)
+        await twilio_ws.close(code=1011)
+        return
+
+    try:
+        signed_url = get_convai_signed_url(os.environ.get("ELEVENLABS_AGENT_ID"))
+        logger.info("[twilio-bridge] got ElevenLabs signed_url")
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("[twilio-bridge] failed to get ElevenLabs signed_url: %s", exc)
+        await twilio_ws.close(code=1011)
+        return
 
     async with websockets.connect(signed_url, max_size=None) as eleven_ws:
         await eleven_ws.send(
@@ -154,12 +228,16 @@ async def bridge(twilio_ws: WebSocket, intervention_id: str) -> None:
                 }
             )
         )
+        logger.info("[twilio-bridge] sent conversation_initiation_client_data to ElevenLabs")
 
         async def twilio_to_eleven() -> None:
             nonlocal stream_sid
             while True:
                 raw = await twilio_ws.receive_text()
-                data = json.loads(raw)
+                try:
+                    data = json.loads(raw)
+                except Exception:  # noqa: BLE001
+                    continue
                 event = data.get("event")
                 if event == "start":
                     stream_sid = data.get("start", {}).get("streamSid")
@@ -170,12 +248,16 @@ async def bridge(twilio_ws: WebSocket, intervention_id: str) -> None:
                         await eleven_ws.send(json.dumps({"user_audio_chunk": payload}))
                     continue
                 if event == "stop":
+                    logger.info("[twilio-bridge] received stop event from Twilio")
                     break
 
         async def eleven_to_twilio() -> None:
             while True:
                 raw = await eleven_ws.recv()
-                msg = json.loads(raw)
+                try:
+                    msg = json.loads(raw)
+                except Exception:  # noqa: BLE001
+                    continue
 
                 audio = msg.get("audio_event", {}) if isinstance(msg, dict) else {}
                 audio_b64 = audio.get("audio_base_64")
@@ -199,12 +281,15 @@ async def bridge(twilio_ws: WebSocket, intervention_id: str) -> None:
         try:
             await asyncio.gather(twilio_to_eleven(), eleven_to_twilio())
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Twilio bridge closed with error: %s", exc)
+            logger.warning("[twilio-bridge] closed with error: %s", exc)
         finally:
-            _update_intervention(
-                intervention_id,
-                {
-                    "status": "delivered",
-                    "delivered_at": _now(),
-                },
-            )
+            try:
+                _update_intervention(
+                    intervention_id,
+                    {
+                        "status": "delivered",
+                        "delivered_at": _now(),
+                    },
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[twilio-bridge] failed to update intervention on close: %s", exc)
