@@ -33,7 +33,8 @@ from backend.routes.playbooks import router as playbooks_router
 
 app = FastAPI(title="Churn Oracle API")
 
-# CORS: allow the Vite dev server (and any extra origins via FRONTEND_ORIGINS env, comma-separated)
+# CORS: Vite dev + frontends + API host. CORSMiddleware also validates WebSocket Origin;
+# Twilio Media Stream uses wss://API_HOST and sends Origin https://API_HOST — must be allowed or WS → 403.
 _default_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -43,6 +44,8 @@ _default_origins = [
     "http://127.0.0.1:4173",
     "http://hack.dark-army.lat",
     "https://hack.dark-army.lat",
+    "http://backend.dark-army.lat",
+    "https://backend.dark-army.lat",
 ]
 _extra = [o.strip() for o in os.environ.get("FRONTEND_ORIGINS", "").split(",") if o.strip()]
 _allow_origins = list({*_default_origins, *_extra})
