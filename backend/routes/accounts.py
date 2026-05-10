@@ -144,6 +144,24 @@ def _normalize_top_signals(raw: Any, *, churn_risk: int, expansion_score: int) -
     return out[:20]
 
 
+def _resolved_account_number(row: dict[str, Any]) -> str:
+    """
+    Devuelve account_number persistido o uno estable derivado del id (filas viejas sin valor).
+    Formato alineado al seed: ACC-{año_alta}-{10_hex_del_uuid}.
+    """
+    raw = row.get("account_number")
+    if raw is not None:
+        s = str(raw).strip()
+        if s:
+            return s
+    aid = str(row.get("id") or "").replace("-", "").upper()
+    if not aid:
+        return "ACC-PENDING"
+    su = _parse_ts(row.get("signup_date"))
+    year = su.year if su else datetime.now(timezone.utc).year
+    return f"ACC-{year}-{aid[:10]}"
+
+
 def _snippet(text: str | None, max_len: int = 160) -> str:
     if not text:
         return ""
@@ -187,7 +205,7 @@ def _fetch_accounts_rows(account_ids: list[str]) -> dict[str, dict[str, Any]]:
         return {}
     client = get_client()
     select = (
-        "id,name,industry,size,plan,arr_usd,champion_name,champion_email,champion_role,champion_phone,"
+        "id,account_number,name,industry,size,plan,arr_usd,champion_name,champion_email,champion_role,champion_phone,"
         "champion_changed_recently,geography,seats_purchased,seats_active,signup_date,"
         "contract_renewal_date,last_qbr_date,current_nps_score,current_nps_category,last_nps_at,"
         "csm_id,"
@@ -239,6 +257,7 @@ def list_accounts(
         accounts.append(
             AccountListItem(
                 id=str(row["id"]),
+                account_number=_resolved_account_number(row),
                 name=str(row["name"]),
                 industry=str(row["industry"]),
                 size=str(row["size"]),
@@ -450,7 +469,7 @@ def get_account_timeline(account_id: str) -> TimelineResponse:
 def get_account(account_id: str) -> AccountDetailResponse:
     client = get_client()
     select = (
-        "id,name,industry,size,plan,arr_usd,geography,seats_purchased,seats_active,signup_date,"
+        "id,account_number,name,industry,size,plan,arr_usd,geography,seats_purchased,seats_active,signup_date,"
         "contract_renewal_date,champion_name,champion_email,champion_role,champion_phone,champion_changed_recently,"
         "last_qbr_date,current_nps_score,current_nps_category,last_nps_at,"
         "csm_team(id,name,email,slack_handle,slack_user_id,phone,role),"
@@ -522,6 +541,7 @@ def get_account(account_id: str) -> AccountDetailResponse:
 
     return AccountDetailResponse(
         id=str(row["id"]),
+        account_number=_resolved_account_number(row),
         name=str(row["name"]),
         industry=str(row["industry"]),
         size=str(row["size"]),

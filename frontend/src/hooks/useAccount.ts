@@ -6,6 +6,7 @@ import type { AccountDetail, AccountSummary, TimelineEvent } from "../types";
 function summaryToDetail(s: AccountSummary): AccountDetail {
   return {
     id: s.id,
+    accountNumber: s.accountNumber ?? null,
     name: s.name,
     industry: s.industry,
     size: s.size,

@@ -225,8 +225,11 @@ def build_account_seeds(
         elif rng.random() < 0.6:
             last_qbr = now - timedelta(days=rng.randint(20, 75))
 
+        compact_uuid = aid.replace("-", "").upper()
         row: dict[str, Any] = {
             "id": aid,
+            # CONTRACTS.md: identificador comercial único (columna NOT NULL en BD).
+            "account_number": f"ACC-{signup.year}-{compact_uuid[:10]}",
             "name": fake.company(),
             "industry": industry,
             "size": size,

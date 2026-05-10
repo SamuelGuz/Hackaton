@@ -1,9 +1,10 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { mockInterventions } from "../../mocks/interventions";
+import { motion } from "framer-motion";
+import { useInterventions } from "../../hooks/useInterventions";
 import { ChannelIcon, channelLabel } from "../../components/ChannelIcon";
 import { CompanyAvatar } from "../../components/CompanyAvatar";
+import { ExpandRowAccordion } from "../../components/ExpandRowAccordion";
 import { SurfaceCard } from "../../components/SurfaceCard";
 import type { SurfaceTone } from "../../components/SurfaceCard";
 import { Sparkline } from "../../components/Sparkline";
@@ -12,7 +13,7 @@ import { useCountUp } from "../../hooks/useCountUp";
 import { useI18n } from "../../context/I18nContext";
 import type { Intervention, InterventionStatus, InterventionOutcome } from "../../types";
 
-const GRID_COLS = "minmax(160px,1.8fr) minmax(110px,1fr) 90px 120px 110px 80px 28px";
+const INV_COL_COUNT = 8;
 
 const SVG = {
   width: 14, height: 14, viewBox: "0 0 24 24",
@@ -83,9 +84,13 @@ function StatCard({
 }
 
 function InterventionRow({
-  inv, expanded, onToggle, locale,
+  inv, index, striped, expanded, onToggle, locale,
 }: {
   inv: Intervention;
+  /** Posición 1-based dentro del listado actualmente filtrado. */
+  index: number;
+  /** Fila alternada (zebra), sólo en la fila principal. */
+  striped: boolean;
   expanded: boolean;
   onToggle: () => void;
   locale: string;
@@ -107,15 +112,12 @@ function InterventionRow({
 
   const dateShort = new Date(inv.createdAt).toLocaleDateString(locale, { day: "numeric", month: "short" });
 
+  const rowAccent = striped ? "co-inv-striped" : "";
+
   return (
-    <div
-      className={`co-inv-row last:border-b-0 ${expanded ? "co-inv-row-expanded" : ""}`}
-    >
-      <motion.div
-        whileTap={{ scale: 0.997 }}
-        transition={{ duration: 0.12 }}
-        className="grid items-center gap-3 px-5 py-3.5 cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500/40"
-        style={{ gridTemplateColumns: GRID_COLS }}
+    <Fragment>
+      <tr
+        className={`co-inv-main cursor-pointer outline-none select-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500/40 ${rowAccent} ${expanded ? "co-table-row-active" : ""}`}
         onClick={onToggle}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -127,42 +129,45 @@ function InterventionRow({
         role="button"
         aria-expanded={expanded}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <CompanyAvatar name={inv.accountName} size="sm" />
-          <div className="min-w-0">
-            <button
-              type="button"
-              className="text-sm font-medium text-slate-100 hover:text-indigo-300 transition-colors truncate block text-left"
-              onClick={(e) => { e.stopPropagation(); navigate(`/accounts/${inv.accountId}`); }}
-            >
-              {inv.accountName}
-            </button>
-            <p className="text-[11px] text-slate-500 truncate">
-              {t(`inv.trigger.${inv.triggerReason}` as string) || inv.triggerReason}
-            </p>
+        <td className="co-inv-col-num tabular-nums text-[11px] text-slate-500 text-right align-middle">
+          {index}
+        </td>
+        <td className="align-middle min-w-[10rem] max-w-[min(38vw,24rem)]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <CompanyAvatar name={inv.accountName} size="sm" />
+            <div className="min-w-0">
+              <button
+                type="button"
+                className="text-sm font-medium text-slate-100 hover:text-indigo-300 transition-colors truncate block text-left w-full"
+                onClick={(e) => { e.stopPropagation(); navigate(`/accounts/${inv.accountId}`); }}
+              >
+                {inv.accountName}
+              </button>
+              <p className="text-[11px] text-slate-500 truncate">
+                {t(`inv.trigger.${inv.triggerReason}` as string) || inv.triggerReason}
+              </p>
+            </div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-slate-500 shrink-0"><ChannelIcon channel={inv.channel} /></span>
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-slate-300">{channelLabel[inv.channel]}</p>
-            <p className="text-[11px] text-slate-500 truncate">{inv.recipient}</p>
+        </td>
+        <td className="align-middle min-w-0 max-w-[min(28vw,16rem)]">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-slate-500 shrink-0"><ChannelIcon channel={inv.channel} /></span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-300 truncate">{channelLabel[inv.channel]}</p>
+              <p className="text-[11px] text-slate-500 truncate">{inv.recipient}</p>
+            </div>
           </div>
-        </div>
-
-        <div className="text-center">
-          <p className={`text-sm font-bold tabular-nums ${confColor}`}>{conf}%</p>
+        </td>
+        <td className="align-middle text-center whitespace-nowrap">
+          <p className={`text-sm font-bold tabular-nums leading-tight ${confColor}`}>{conf}%</p>
           <p className="text-[10px] text-slate-500">{t("inv.confidenceLabel")}</p>
-        </div>
-
-        <div>
+        </td>
+        <td className="align-middle whitespace-nowrap">
           <span className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-semibold ${STATUS_STYLE[inv.status]}`}>
             {t(`inv.status.${inv.status}` as string)}
           </span>
-        </div>
-
-        <div>
+        </td>
+        <td className="align-middle whitespace-nowrap">
           {inv.outcome ? (
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-semibold ${OUTCOME_STYLE[inv.outcome]}`}>
               <span>{OUTCOME_ICON[inv.outcome]}</span>
@@ -171,32 +176,27 @@ function InterventionRow({
           ) : (
             <span className="text-[11px] text-slate-600">—</span>
           )}
-        </div>
-
-        <div className="text-[11px] text-slate-500 tabular-nums text-right">
+        </td>
+        <td className="align-middle text-right whitespace-nowrap text-[11px] text-slate-500 tabular-nums">
           {dateShort}
-        </div>
-
-        <motion.svg
-          {...SVG}
-          className="text-slate-500 shrink-0"
-          animate={{ rotate: expanded ? 180 : 0 }}
-          transition={{ type: "spring", stiffness: 400, damping: 28 }}
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </motion.svg>
-      </motion.div>
-
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            key="detail"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="border-t border-slate-800/50"
+        </td>
+        <td className="co-inv-col-chevron align-middle text-slate-500" aria-hidden>
+          <svg
+            {...SVG}
+            className={`mx-auto block transition-transform duration-200 ease-out motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
           >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </td>
+      </tr>
+
+      <tr className={expanded ? "co-table-expand" : ""}>
+        <td
+          colSpan={INV_COL_COUNT}
+          className={`!p-0 align-top ${expanded ? "" : "border-b-0 bg-transparent"}`}
+        >
+          <ExpandRowAccordion open={expanded}>
+            <div className="border-t border-slate-800/50">
             <div className="px-5 pb-5 pt-4 grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 {inv.messageSubject && (
@@ -258,10 +258,11 @@ function InterventionRow({
                 </div>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+            </div>
+          </ExpandRowAccordion>
+        </td>
+      </tr>
+    </Fragment>
   );
 }
 
@@ -275,18 +276,7 @@ export default function Interventions() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const locale = lang === "es" ? "es" : "en-US";
-  const interventions = mockInterventions;
-
-  const stats = useMemo(() => {
-    const total = interventions.length;
-    const success = interventions.filter((i) => i.outcome === "success").length;
-    const pending = interventions.filter((i) => i.status === "pending_approval").length;
-    const resolved = interventions.filter((i) => i.outcome !== null);
-    const successRate = resolved.length > 0
-      ? (resolved.filter((i) => i.outcome === "success" || i.outcome === "partial").length / resolved.length) * 100
-      : 0;
-    return { total, success, pending, successRate };
-  }, [interventions]);
+  const { interventions, stats, loading, error } = useInterventions();
 
   const filtered = useMemo(() => {
     let list = [...interventions];
@@ -446,54 +436,80 @@ export default function Interventions() {
       <SurfaceCard weight="panel" tone="neutral" hoverLift={false} motionIndex={4} surface="data" className="overflow-hidden">
         <div className="co-table-wrap">
           <div className="co-table-shell">
-            <div
-              className="co-inv-list-header"
-              style={{ gridTemplateColumns: GRID_COLS }}
-            >
-              {[
-                t("inv.colAccount"), t("inv.colChannel"), t("inv.colConfidence"),
-                t("inv.colStatus"), t("inv.colOutcome"), t("inv.colDate"), "",
-              ].map((h, i) => (
-                <p key={i} className="text-[10px] uppercase tracking-widest font-semibold text-slate-500">{h}</p>
-              ))}
-            </div>
+            <table className="co-table text-sm co-inv-table">
+              <thead>
+                <tr>
+                  <th className="co-inv-col-num text-[11px] font-semibold text-slate-500 tabular-nums text-right normal-case tracking-normal">
+                    {t("dash.colIndex")}
+                  </th>
+                  <th>{t("inv.colAccount")}</th>
+                  <th>{t("inv.colChannel")}</th>
+                  <th className="text-center">{t("inv.colConfidence")}</th>
+                  <th>{t("inv.colStatus")}</th>
+                  <th>{t("inv.colOutcome")}</th>
+                  <th className="text-right">{t("inv.colDate")}</th>
+                  <th className="co-inv-col-chevron p-0" aria-hidden />
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={INV_COL_COUNT} className="py-16 text-center align-middle">
+                      <div className="w-8 h-8 mx-auto mb-3 border-2 border-slate-700 border-t-indigo-400 rounded-full animate-spin" />
+                      <p className="text-slate-400 text-sm">{t("global.loading")}</p>
+                    </td>
+                  </tr>
+                ) : null}
 
-            {filtered.length === 0 ? (
-              <div className="py-16 px-4 text-center">
-                <p className="text-slate-400 text-sm mb-1">{t("inv.empty")}</p>
-                <p className="text-xs text-slate-500 mb-6">{t("global.tryFilter")}</p>
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                  {filtersDirty && (
-                    <button
-                      type="button"
-                      onClick={resetFilters}
-                      className="inline-flex items-center justify-center rounded-lg border border-indigo-500/35 bg-indigo-950/40 px-4 py-2 text-sm font-semibold text-indigo-200 hover:bg-indigo-900/50 transition-colors"
-                    >
-                      {t("inv.emptyReset")}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => navigate("/")}
-                    className="inline-flex items-center justify-center rounded-lg border border-slate-600 bg-slate-800/80 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-colors"
-                  >
-                    {t("inv.emptyGoDashboard")}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="co-inv-rows">
-                {filtered.map((inv) => (
-                  <InterventionRow
-                    key={inv.id}
-                    inv={inv}
-                    expanded={expandedId === inv.id}
-                    onToggle={() => setExpandedId(expandedId === inv.id ? null : inv.id)}
-                    locale={locale}
-                  />
-                ))}
-              </div>
-            )}
+                {!loading && error ? (
+                  <tr>
+                    <td colSpan={INV_COL_COUNT} className="py-16 text-center align-middle">
+                      <p className="text-rose-400 text-sm mb-1">Error: {error}</p>
+                    </td>
+                  </tr>
+                ) : null}
+
+                {!loading && !error && filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={INV_COL_COUNT} className="py-16 text-center align-middle">
+                      <p className="text-slate-400 text-sm mb-1">{t("inv.empty")}</p>
+                      <p className="text-xs text-slate-500 mb-6">{t("global.tryFilter")}</p>
+                      <div className="flex flex-wrap items-center justify-center gap-3">
+                        {filtersDirty && (
+                          <button
+                            type="button"
+                            onClick={resetFilters}
+                            className="inline-flex items-center justify-center rounded-lg border border-indigo-500/35 bg-indigo-950/40 px-4 py-2 text-sm font-semibold text-indigo-200 hover:bg-indigo-900/50 transition-colors"
+                          >
+                            {t("inv.emptyReset")}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => navigate("/")}
+                          className="inline-flex items-center justify-center rounded-lg border border-slate-600 bg-slate-800/80 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 transition-colors"
+                        >
+                          {t("inv.emptyGoDashboard")}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
+
+                {!loading && !error &&
+                  filtered.map((inv, idx) => (
+                    <InterventionRow
+                      key={inv.id}
+                      inv={inv}
+                      index={idx + 1}
+                      striped={idx % 2 === 1}
+                      expanded={expandedId === inv.id}
+                      onToggle={() => setExpandedId(expandedId === inv.id ? null : inv.id)}
+                      locale={locale}
+                    />
+                  ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </SurfaceCard>

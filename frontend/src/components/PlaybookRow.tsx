@@ -1,4 +1,5 @@
 import { ChannelIcon } from "./ChannelIcon";
+import { ExpandRowAccordion } from "./ExpandRowAccordion";
 import { humanizeI18n } from "../utils/format";
 import { useI18n } from "../context/I18nContext";
 import type { Playbook } from "../types";
@@ -39,6 +40,8 @@ function ProfileTags({ profile }: { profile: Record<string, unknown> }) {
 
 interface Props {
   playbook: Playbook;
+  /** Posición 1-based dentro del listado actualmente filtrado/ordenado. */
+  index?: number;
   expanded: boolean;
   onToggle: () => void;
   onJumpTo?: (id: string) => void;
@@ -51,7 +54,7 @@ const SVG = {
   strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
 };
 
-export function PlaybookRow({ playbook, expanded, onToggle, onJumpTo, byId }: Props) {
+export function PlaybookRow({ playbook, index, expanded, onToggle, onJumpTo, byId }: Props) {
   const { t } = useI18n();
   const superseded = !!playbook.supersededBy;
   const replaces = !!playbook.supersedes;
@@ -71,9 +74,12 @@ export function PlaybookRow({ playbook, expanded, onToggle, onJumpTo, byId }: Pr
           expanded ? "co-table-row-active" : ""
         } ${superseded && !expanded ? "opacity-60" : ""}`}
       >
+        {index != null && (
+          <td className="text-right tabular-nums text-[11px] text-slate-500 w-[2rem] min-w-[2rem] max-w-[2rem] px-1.5">{index}</td>
+        )}
         <td>
           <div className="flex items-center gap-3">
-            <svg {...SVG} width="12" height="12" className={`text-slate-500 transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}>
+            <svg {...SVG} width="12" height="12" className={`text-slate-500 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none ${expanded ? "rotate-90" : ""}`}>
               <polyline points="9 18 15 12 9 6" />
             </svg>
             <div className="w-7 h-7 rounded-md bg-slate-800 text-slate-300 flex items-center justify-center shrink-0">
@@ -109,10 +115,13 @@ export function PlaybookRow({ playbook, expanded, onToggle, onJumpTo, byId }: Pr
         </td>
       </tr>
 
-      {expanded && (
-        <tr className="co-table-expand">
-          <td colSpan={4} className="!py-3 pb-5">
-            <div className="ml-7 grid md:grid-cols-2 gap-5 pl-3 border-l-2 border-slate-700/60">
+      <tr className={expanded ? "co-table-expand" : ""}>
+        <td
+          colSpan={index != null ? 5 : 4}
+          className={`!p-0 align-top ${expanded ? "" : "border-b-0 bg-transparent"}`}
+        >
+          <ExpandRowAccordion open={expanded}>
+            <div className="py-3 pb-5 ml-7 grid md:grid-cols-2 gap-5 pl-3 border-l-2 border-slate-700/60">
               <div className="space-y-4">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
@@ -170,9 +179,9 @@ export function PlaybookRow({ playbook, expanded, onToggle, onJumpTo, byId }: Pr
                 </p>
               </div>
             </div>
-          </td>
-        </tr>
-      )}
+          </ExpandRowAccordion>
+        </td>
+      </tr>
     </>
   );
 }

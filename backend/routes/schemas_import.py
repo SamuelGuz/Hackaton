@@ -30,6 +30,8 @@ class ImportAccountRow(BaseModel):
     champion_phone: str | None = None
     csm_assigned: str
 
+    account_number: str | None = None
+
     churn_risk_score: int | None = None
     expansion_score: int | None = None
     health_status: HealthStatusLiteral | None = None

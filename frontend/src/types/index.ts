@@ -60,6 +60,8 @@ export interface CsmDetail extends CsmRef {
 
 export interface AccountSummary {
   id: string;
+  /** Identificador comercial único (columna `account_number` en BD). */
+  accountNumber?: string | null;
   name: string;
   industry: string;
   size: string;
@@ -169,6 +171,7 @@ export interface ContactChannels {
 
 export interface AccountDetail {
   id: string;
+  accountNumber?: string | null;
   name: string;
   industry: string;
   size: string;
@@ -199,16 +202,24 @@ export interface TimelineResponse {
 }
 
 export interface InterventionRecommendation {
+  /** ID de la fila persistida en `interventions`. Indispensable para dispatch. */
+  interventionId: string | null;
   accountId: string;
   triggerReason: string;
   recommendedChannel: InterventionChannel;
   recipient: string;
   messageSubject: string | null;
   messageBody: string;
-  playbookIdUsed: string;
-  playbookSuccessRateAtDecision: number;
+  playbookIdUsed: string | null;
+  playbookSuccessRateAtDecision: number | null;
   agentReasoning: string;
   confidence: number;
+  /** Si true + status="pending_approval", el dispatch está bloqueado hasta aprobación humana. */
+  requiresApproval: boolean;
+  /** "pending" → listo para dispatch. "pending_approval" → esperando humano. */
+  status: "pending" | "pending_approval";
+  autoApproved: boolean;
+  approvalReasoning: string;
 }
 
 export interface DispatchPayload {

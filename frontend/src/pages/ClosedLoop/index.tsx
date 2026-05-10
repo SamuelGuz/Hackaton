@@ -140,6 +140,7 @@ export default function ClosedLoop() {
             <table className="co-table text-sm">
           <thead>
             <tr>
+              <th className="text-right tabular-nums w-[2rem] min-w-[2rem] max-w-[2rem] px-1.5 align-middle">{t("dash.colIndex")}</th>
               <th>{t("cl.colPlaybook")}</th>
               <th>{t("cl.colProfile")}</th>
               <th className="text-right">{t("cl.colUses")}</th>
@@ -147,9 +148,10 @@ export default function ClosedLoop() {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((p: Playbook) => (
+            {sorted.map((p: Playbook, idx) => (
               <PlaybookRow
                 key={p.id}
+                index={idx + 1}
                 playbook={p}
                 expanded={expandedId === p.id}
                 onToggle={() => setExpandedId(expandedId === p.id ? null : p.id)}

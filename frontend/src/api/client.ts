@@ -18,12 +18,37 @@ function convertKeys(obj: unknown): unknown {
   return obj;
 }
 
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  details?: unknown;
+  body?: unknown;
+  constructor(status: number, message: string, body?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+    if (body && typeof body === "object") {
+      const b = body as Record<string, unknown>;
+      if (typeof b.error === "string") this.code = b.error;
+      this.details = b.details;
+    }
+  }
+}
+
 export async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...opts,
     headers: { "Content-Type": "application/json", ...opts?.headers },
   });
-  if (!res.ok) throw new Error(`${res.status} ${path}`);
+  if (!res.ok) {
+    let body: unknown = null;
+    try { body = await res.json(); } catch { /* ignore */ }
+    const msg = (body && typeof body === "object" && "message" in (body as object)
+      ? String((body as { message?: unknown }).message)
+      : `${res.status} ${path}`);
+    throw new ApiError(res.status, msg, body);
+  }
   const json = await res.json();
   return convertKeys(json) as T;
 }

@@ -106,6 +106,32 @@ def dispatch_intervention(body: DispatchRequest):
     audio_url: str | None = None
     fallback_used = False
 
+    # Validar que la intervención existe y está aprobada antes de despachar.
+    # CONTRACTS.md §2.4: dispatch debe rechazar si status NO está en ('pending', 'approved').
+    sb = _sb()
+    inv_row = (
+        sb.table("interventions")
+        .select("id,status")
+        .eq("id", body.intervention_id)
+        .limit(1)
+        .execute()
+    )
+    rows = getattr(inv_row, "data", None) or []
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "intervention_not_found", "message": f"intervention {body.intervention_id} not found"},
+        )
+    current_status = str(rows[0].get("status") or "")
+    if current_status not in ("pending", "approved"):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "intervention_not_approved",
+                "message": f"intervention status is '{current_status}', must be 'pending' or 'approved' to dispatch",
+            },
+        )
+
     try:
         callback = _callback_url()
         if body.channel == "email":

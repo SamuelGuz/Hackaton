@@ -327,52 +327,64 @@ body {
   padding: 0.5rem 0.75rem;
 }
 
-/* ─── Lista Intervenciones (rejilla densa + cabecera sticky) ───── */
+/* ─── Lista Intervenciones (tabla auto-layout, columnas al contenido) ─ */
 
-.co-inv-list-header {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  display: grid;
-  gap: 0.75rem;
-  align-items: end;
-  padding: 0.65rem 1.25rem;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.28);
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.78) 0%, rgba(15, 23, 42, 0.92) 100%);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+.co-inv-table {
+  table-layout: auto;
 }
 
-.co-inv-row {
-  border-bottom: 1px solid var(--co-border-table);
-  transition: background-color 0.16s ease;
+/*
+ * Anula zebra global por nth-child(even) en esta tabla (confunde fila expandida).
+ */
+.co-table.co-inv-table tbody tr:nth-child(even):not(:hover):not(:focus-within) td {
+  background-color: transparent;
 }
 
-.co-inv-row:hover {
-  background-color: rgba(var(--co-brand-rgb), 0.06);
+.co-table.co-inv-table tbody tr.co-table-expand:nth-child(even) td,
+.co-table.co-inv-table tbody tr.co-table-expand:nth-child(odd) td {
+  background: rgba(12, 18, 30, 0.75);
+  border-bottom: 1px solid rgba(51, 65, 85, 0.2);
 }
 
-.co-inv-row:focus-within {
-  background-color: rgba(var(--co-brand-rgb), 0.09);
+/* Columnas índice / chevron: mínimo ancho posible (truco tabla HTML) */
+.co-inv-table .co-inv-col-num {
+  width: 0.01%;
+  padding-left: 0.65rem;
+  padding-right: 0.35rem;
+  vertical-align: middle;
 }
 
-.co-inv-rows .co-inv-row:nth-child(even) {
-  background-color: rgba(255, 255, 255, 0.016);
+.co-inv-table .co-inv-col-chevron {
+  width: 0.01%;
+  padding-left: 0.15rem;
+  padding-right: 0.55rem;
+  vertical-align: middle;
 }
 
-.co-inv-rows .co-inv-row:nth-child(even):hover {
+/*
+ * Sin zebra por nth-child: al expandir hay un segundo <tr> y los índices pares saltan.
+ * Usamos .co-inv-striped en la fila principal.
+ */
+.co-table.co-inv-table tbody tr.co-inv-main > td {
+  background-color: transparent;
+}
+
+.co-table.co-inv-table tbody tr.co-inv-main.co-inv-striped > td {
+  background-color: rgba(255, 255, 255, 0.018);
+}
+
+.co-table.co-inv-table tbody tr.co-inv-main:hover > td {
   background-color: rgba(var(--co-brand-rgb), 0.07);
 }
 
-.co-inv-rows .co-inv-row:nth-child(even):focus-within {
+.co-table.co-inv-table tbody tr.co-inv-main:focus-within > td {
   background-color: rgba(var(--co-brand-rgb), 0.1);
 }
 
-.co-inv-row-expanded {
-  background-color: rgba(30, 41, 59, 0.35);
+.co-table.co-inv-table tbody tr.co-inv-main.co-table-row-active > td {
+  background-color: rgba(30, 41, 59, 0.42);
 }
 
-.co-inv-row-expanded:hover {
-  background-color: rgba(36, 44, 62, 0.42);
+.co-table.co-inv-table tbody tr.co-inv-main.co-table-row-active:hover > td {
+  background-color: rgba(36, 44, 62, 0.55);
 }
