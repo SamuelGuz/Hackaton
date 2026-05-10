@@ -463,7 +463,7 @@ def dispatch_intervention_multi(body: MultiDispatchRequest):
 
 @router.get("/status/{intervention_id}")
 def get_dispatch_status(intervention_id: str):
-    row = (
+    res = (
         _sb()
         .table("interventions")
         .select("id, status, channel, sent_at, delivered_at")
@@ -471,12 +471,12 @@ def get_dispatch_status(intervention_id: str):
         .maybe_single()
         .execute()
     )
-    if not row.data:
+    data = getattr(res, "data", None) if res is not None else None
+    if not data:
         raise HTTPException(
             status_code=404,
-            detail={"error": "account_not_found", "message": "Intervention not found"},
+            detail={"error": "intervention_not_found", "message": "Intervention not found"},
         )
-    data = row.data
     return {
         "intervention_id": intervention_id,
         "status": data["status"],
@@ -518,7 +518,7 @@ async def twilio_media_stream(ws: WebSocket, intervention_id: str):
 def twilio_status_callback(
     CallSid: str = Form(""),
     CallStatus: str = Form(""),
-    intervention_id: str = Form(""),
+    intervention_id: str = Query(""),
 ):
     call_status = (CallStatus or "").strip().lower()
     update: dict = {"external_id": CallSid}

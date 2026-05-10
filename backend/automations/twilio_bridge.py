@@ -54,7 +54,10 @@ def start_twilio_call(intervention_id: str, to_phone: str) -> str:
     """Create outbound PSTN call in Twilio and return Call SID."""
     twiml_query = urlencode({"intervention_id": intervention_id})
     twiml_url = f"{_api_base_url()}/api/v1/dispatch-intervention/twilio/twiml?{twiml_query}"
-    status_url = f"{_api_base_url()}/api/v1/dispatch-intervention/twilio/status"
+    status_query = urlencode({"intervention_id": intervention_id})
+    status_url = (
+        f"{_api_base_url()}/api/v1/dispatch-intervention/twilio/status?{status_query}"
+    )
     call = _twilio_client().calls.create(
         to=to_phone,
         from_=os.environ["TWILIO_FROM_NUMBER"],
