@@ -129,13 +129,19 @@ function NavItem({ to, end, icon, label }: NavItemProps) {
 
 /* ─── Logo ─────────────────────────────────────────────────────── */
 function Logo() {
+  const logoSrc = `${import.meta.env.BASE_URL}logo.png`;
   return (
     <div className="flex items-center gap-2.5 group cursor-default select-none">
-      <div className="relative">
-        <span className="navbar-logo-halo" />
-        <div className="relative w-8 h-8 rounded-xl navbar-logo-icon flex items-center justify-center text-white font-bold text-sm z-10">
-          C
-        </div>
+      <div className="relative h-10 w-10 shrink-0">
+        <span className="navbar-logo-halo" aria-hidden />
+        <img
+          src={logoSrc}
+          alt=""
+          width={40}
+          height={40}
+          decoding="async"
+          className="relative z-10 h-10 w-10 rounded-xl object-contain bg-slate-950/50 p-0.5 ring-1 ring-white/10 shadow-md"
+        />
       </div>
       <div className="flex flex-col leading-none">
         <span className="navbar-brand-text font-bold text-[15px] tracking-tight">
