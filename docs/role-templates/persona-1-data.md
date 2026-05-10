@@ -25,8 +25,8 @@ that everyone else depends on.
 - [ ] Generate 200 synthetic accounts with Claude (varied buckets per CONTRACTS.md section 4)
 - [ ] Generate usage events, tickets, conversations, historical deals
 - [ ] Seed initial 12 playbooks (coordinate with Persona 2)
-- [ ] Implement endpoints: GET /accounts, GET /accounts/{id}, GET /accounts/{id}/timeline
-- [ ] Deploy backend to Railway/Render
+- [x] Implement endpoints: GET /accounts, GET /accounts/{id}, GET /accounts/{id}/timeline
+- [x] Deploy backend to Railway/Render
 - [ ] Support cross-team queries and debugging
 
 ## What I do NOT touch

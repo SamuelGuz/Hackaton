@@ -27,6 +27,7 @@ class ImportAccountRow(BaseModel):
     champion_name: str
     champion_email: str
     champion_role: str
+    champion_phone: str | None = None
     csm_assigned: str
 
     churn_risk_score: int | None = None

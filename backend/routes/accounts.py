@@ -187,7 +187,7 @@ def _fetch_accounts_rows(account_ids: list[str]) -> dict[str, dict[str, Any]]:
         return {}
     client = get_client()
     select = (
-        "id,name,industry,size,plan,arr_usd,champion_name,champion_email,champion_role,"
+        "id,name,industry,size,plan,arr_usd,champion_name,champion_email,champion_role,champion_phone,"
         "champion_changed_recently,geography,seats_purchased,seats_active,signup_date,"
         "contract_renewal_date,last_qbr_date,current_nps_score,current_nps_category,last_nps_at,"
         "csm_id,"
@@ -245,6 +245,7 @@ def list_accounts(
                 plan=str(row["plan"]),
                 arr_usd=_num(row.get("arr_usd")),
                 champion_name=str(row.get("champion_name") or ""),
+                champion_phone=row.get("champion_phone"),
                 csm=CsmListItem(
                     id=str(csm["id"]),
                     name=str(csm["name"]),
@@ -450,7 +451,7 @@ def get_account(account_id: str) -> AccountDetailResponse:
     client = get_client()
     select = (
         "id,name,industry,size,plan,arr_usd,geography,seats_purchased,seats_active,signup_date,"
-        "contract_renewal_date,champion_name,champion_email,champion_role,champion_changed_recently,"
+        "contract_renewal_date,champion_name,champion_email,champion_role,champion_phone,champion_changed_recently,"
         "last_qbr_date,current_nps_score,current_nps_category,last_nps_at,"
         "csm_team(id,name,email,slack_handle,slack_user_id,phone,role),"
         "account_health_snapshot("
@@ -535,6 +536,7 @@ def get_account(account_id: str) -> AccountDetailResponse:
             name=str(row.get("champion_name") or ""),
             email=str(row.get("champion_email") or ""),
             role=str(row.get("champion_role") or ""),
+            phone=row.get("champion_phone"),
             changed_recently=bool(row.get("champion_changed_recently")),
         ),
         csm=CsmDetail(

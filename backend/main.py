@@ -9,10 +9,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.routes.agents import router as agents_router
+from backend.automations.channel_router import router as dispatch_router
 from backend.routes.accounts import router as accounts_router
 from backend.routes.accounts_import import router as accounts_import_router
-from backend.routes.dispatch import router as dispatch_router
+from backend.routes.agents import router as agents_router
 from backend.routes.playbooks import router as playbooks_router
 
 app = FastAPI(title="Churn Oracle API")
@@ -25,6 +25,8 @@ _default_origins = [
     "http://127.0.0.1:3000",
     "http://localhost:4173",
     "http://127.0.0.1:4173",
+    "http://hack.dark-army.lat",
+    "https://hack.dark-army.lat",
 ]
 _extra = [o.strip() for o in os.environ.get("FRONTEND_ORIGINS", "").split(",") if o.strip()]
 _allow_origins = list({*_default_origins, *_extra})
