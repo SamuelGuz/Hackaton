@@ -658,6 +658,13 @@ def receive_conversation(body: ConversationPayload):
         "intervention_id": intervention_id,
     }).execute()
 
+    conversation_ended = False
+
+    # Si la IA indica que identificó el problema, cerrar la conversación en Supabase
+    if body.direction == "outbound" and intervention_id and "[FIN]" in body.content:
+        _update_intervention(intervention_id, {"status": "closed"})
+        conversation_ended = True
+
     # Solo inferir outcome y marcar responded cuando el cliente responde (inbound)
     if intervention_id and body.direction == "inbound":
         update: dict = {"status": "responded", "responded_at": now}
@@ -672,7 +679,7 @@ def receive_conversation(body: ConversationPayload):
         if inferred_outcome and playbook_id:
             _apply_playbook_outcome(sb, playbook_id, inferred_outcome)
 
-    return {"received": True, "account_id": account_id}
+    return {"received": True, "account_id": account_id, "conversation_ended": conversation_ended}
 
 
 class InboundMessageRequest(BaseModel):
