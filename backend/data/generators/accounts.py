@@ -212,6 +212,7 @@ def build_account_seeds(
         now = datetime.now(timezone.utc)
         signup = now - timedelta(days=rng.randint(60, 720))
         renewal = signup + timedelta(days=rng.randint(300, 420))
+        account_number = f"ACC-{signup.year}-{i + 1:05d}"
 
         champion_changed = False
         if bucket == "at_risk_obvious" and rng.random() < 0.45:
@@ -228,7 +229,6 @@ def build_account_seeds(
         compact_uuid = aid.replace("-", "").upper()
         row: dict[str, Any] = {
             "id": aid,
-            # CONTRACTS.md: identificador comercial único (columna NOT NULL en BD).
             "account_number": f"ACC-{signup.year}-{compact_uuid[:10]}",
             "name": fake.company(),
             "industry": industry,

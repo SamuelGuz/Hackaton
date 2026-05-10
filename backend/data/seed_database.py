@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -88,6 +89,7 @@ def validate_dataset(ds: GeneratedDataset, expected_accounts: int, expected_deal
     print(f"Demo traps: churn_subtle={traps_c}, expansion_subtle={traps_e}")
     for a in ds.accounts[:3]:
         assert a.get("current_nps_score") is not None
+        assert a.get("account_number")
 
 
 def count_rows(client: Any, table: str, pk_field: str = "id") -> int:
@@ -120,6 +122,39 @@ def fetch_account_names(client: Any) -> set[str]:
         return set()
 
 
+def fetch_account_numbers(client: Any) -> set[str]:
+    """Fetch existing account numbers to avoid duplicates in append mode."""
+    try:
+        r = client.table("accounts").select("account_number").execute()
+        data = r.data or []
+        return {
+            str(row.get("account_number")).strip()
+            for row in data
+            if isinstance(row, dict) and row.get("account_number")
+        }
+    except Exception:
+        return set()
+
+
+def _extract_numeric_suffix(account_number: str) -> int | None:
+    m = re.match(r"^ACC-\d{4}-(\d+)$", account_number)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
+
+
+def max_account_number_suffix(account_numbers: set[str]) -> int:
+    mx = 0
+    for value in account_numbers:
+        parsed = _extract_numeric_suffix(value)
+        if parsed is not None and parsed > mx:
+            mx = parsed
+    return mx
+
+
 def dedupe_account_names(accounts: list[dict[str, Any]], existing_names: set[str]) -> int:
     """
     Ensure account names are unique against existing rows and within the current batch.
@@ -141,6 +176,17 @@ def dedupe_account_names(accounts: list[dict[str, Any]], existing_names: set[str
     return renamed
 
 
+def renumber_account_numbers(accounts: list[dict[str, Any]], *, start_suffix: int) -> None:
+    """
+    Assign sequential account_number values compatible with CONTRACTS format:
+    ACC-YYYY-NNNNN
+    """
+    for idx, row in enumerate(accounts):
+        signup_raw = str(row.get("signup_date") or "")
+        year = signup_raw[:4] if len(signup_raw) >= 4 and signup_raw[:4].isdigit() else "2026"
+        row["account_number"] = f"ACC-{year}-{start_suffix + idx:05d}"
+
+
 def run_seed(
     cfg: GeneratorConfig,
     *,
@@ -153,6 +199,8 @@ def run_seed(
         raise ValueError("--append and --reset are mutually exclusive.")
 
     existing_account_names: set[str] = set()
+    existing_account_numbers: set[str] = set()
+    max_suffix = 0
     if append_mode and only is None:
         only = set(APPEND_SAFE_TABLES)
         print("Append mode enabled: inserting only append-safe tables by default.")
@@ -166,6 +214,8 @@ def run_seed(
             )
         existing_accounts = count_rows(client, "accounts")
         existing_account_names = fetch_account_names(client)
+        existing_account_numbers = fetch_account_numbers(client)
+        max_suffix = max_account_number_suffix(existing_account_numbers)
         # Prevent deterministic collisions when running append repeatedly with the same --seed.
         cfg.random_seed = cfg.random_seed + existing_accounts
         print(
@@ -181,6 +231,11 @@ def run_seed(
         renamed = dedupe_account_names(ds.accounts, existing_account_names)
         if renamed:
             print(f"Append mode: renamed {renamed} generated account names to avoid duplicates.")
+        renumber_account_numbers(ds.accounts, start_suffix=max_suffix + 1)
+        print(
+            "Append mode: reassigned account_number values "
+            f"starting at suffix {max_suffix + 1} to avoid unique collisions."
+        )
     validate_dataset(ds, cfg.num_accounts, cfg.historical_deals_n)
 
     def want(name: str) -> bool:

@@ -1,9 +1,9 @@
 {
-  "intervention_id": "uuid",                                  
-  "to": "pamela40@teran.com",                             
+  "intervention_id": "uuid",
+  "to": "pamela40@teran.com",
   "to_name": "Juan Bernardo",
-  "subject": "Resolving Your Technical Concerns",             
-  "body": "Hi Juan Bernardo,\n\nI noticed unresolved support tickets...\n\nBest,\nAna",                                    
-  "account_id": "uuid",                                       
-  "account_name": "Acme Corp"                                 
-}          
+  "subject": "Resolving Your Technical Concerns",
+  "body": "Hi Juan Bernardo,\n\nI noticed unresolved support tickets...\n\nBest,\nAna",
+  "account_id": "uuid",
+  "account_name": "Acme Corp"
+}
