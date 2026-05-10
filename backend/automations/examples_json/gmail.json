@@ -1,0 +1,9 @@
+{
+  "intervention_id": "email-456-def",
+  "to_email": "cliente@empresa.com",
+  "subject": "Hola Juan, ¿podemos hablar 5 minutos?",
+  "body": "Hola Juan,\n\nVi que...",
+  "from_name": "Carlos López",
+  "from_email": "carlos@acmesaas.io",
+  "callback_url": "https://churn-oracle-api.../api/v1/dispatch-intervention/callback"
+}

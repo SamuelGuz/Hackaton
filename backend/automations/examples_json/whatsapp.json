@@ -1,0 +1,8 @@
+{
+  "intervention_id": "wsp-123-abc",
+  "to_phone": "+573001234567",
+  "nombre_cliente": "Juan Perez",
+  "nombre_empresa": "Acme SaaS",
+  "motivo_alerta": "una caída del 40% en el uso de reportes",
+  "callback_url": "https://tu-backend.com/api/v1/callback"
+}
