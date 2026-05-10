@@ -11,10 +11,10 @@ I'm the one who makes the demo feel ALIVE — when the judge sees messages arriv
 ## What I work on
 
 ### Files and folders I own
-- `/backend/automations/channel_router.py` — dispatches to correct channel
+- `/backend/automations/channel_router.py` — dispatches to correct channel + expone `/dispatch-intervention/*`
 - `/backend/automations/elevenlabs_client.py` — voice synthesis
 - `/backend/automations/make_webhooks.py` — webhook senders
-- `/backend/routes/dispatch.py` — /dispatch-intervention endpoints
+- `/backend/automations/slack_notifier.py` — notificación al CSM cuando se requiere aprobación
 - Make workflows (4 of them: email, Slack, WhatsApp, voice)
 - ElevenLabs voice clone configuration
 - `/docs/runbook-fallbacks.md` — fallback procedures

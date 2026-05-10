@@ -37,6 +37,7 @@ export async function parseFile(file: File): Promise<ParsedSheet> {
 
 // Columnas del template en orden — las claves referencian "col.*" en translations.ts
 const TEMPLATE_FIELD_KEYS = [
+  "col.accountNumber",
   "col.name",
   "col.industry",
   "col.size",
@@ -66,18 +67,21 @@ export function downloadTemplate(t: TFn) {
   // Datos de ejemplo — los valores son los enums que el sistema espera (inglés)
   const sampleValues = [
     [
+      "ACC-2024-ACME001",
       "Acme Corp", "fintech", "mid_market", "latam", "growth", 48000,
       50, 19, "2024-03-10",
       "María Pérez", "maria@acmecorp.com", "VP Operations", "+57 300 1234567", "@maria.perez",
       "Ana Restrepo", "2026-08-15", 91, 14,
     ],
     [
+      "ACC-2024-BETA002",
       "BetaCo", "ecommerce", "smb", "us", "starter", 18000,
       15, 12, "2024-08-20",
       "Luis Ramírez", "luis@betaco.com", "Head of Growth", "+1 415 555 0182", "#betaco-success",
       "Diego Martínez", "2026-09-01", 74, 41,
     ],
     [
+      "ACC-2025-GAMM003",
       "GammaInc", "healthtech", "smb", "latam", "growth", 32000,
       25, 23, "2025-01-05",
       "Sofia Mendez", "sofia@gammainc.com", "CTO", "+52 55 1234 5678", "@sofia.mendez",

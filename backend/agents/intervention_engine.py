@@ -54,6 +54,19 @@ APPROVAL_ARR_THRESHOLD = 25000
 APPROVAL_BIG_SAVE_ARR = 50000
 APPROVAL_MIN_CONFIDENCE = 0.75
 
+# Estados no-terminales: si existe una intervención del account con alguno de estos,
+# no se debe crear una nueva (defensa en profundidad contra duplicados causados por
+# races / dobles disparos del frontend). Terminales = `rejected`, `failed`, o
+# cualquier fila con outcome != null.
+OPEN_INTERVENTION_STATUSES: tuple[str, ...] = (
+    "pending_approval",
+    "pending",
+    "sent",
+    "delivered",
+    "opened",
+    "responded",
+)
+
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -268,8 +281,27 @@ def _parse_ts(raw: Any) -> datetime | None:
 
 
 def _check_cool_off(account_id: str, top_playbook_id: str | None) -> None:
-    """Enforce same-account 72h cool-off + same-account 14-day playbook block."""
+    """Enforce open-row guard + same-account 72h cool-off + 14-day playbook block."""
     sb = get_supabase()
+
+    # Hard guard: si ya hay una intervención no-terminal para esta cuenta, no se crea
+    # otra. Esto cubre el caso donde el frontend dispara dos POSTs en paralelo
+    # (StrictMode dev / doble click) y el time-based cool-off de abajo no llega a
+    # bloquear el segundo a tiempo.
+    open_res = (
+        sb.table("interventions")
+        .select("id, status")
+        .eq("account_id", account_id)
+        .in_("status", list(OPEN_INTERVENTION_STATUSES))
+        .limit(1)
+        .execute()
+    )
+    open_rows = getattr(open_res, "data", None) or []
+    if open_rows:
+        row = open_rows[0]
+        raise CoolOffActive(
+            f"open_intervention_exists id={row.get('id')} status={row.get('status')}"
+        )
 
     # 72h cool-off based on the most recent intervention.
     last_res = (

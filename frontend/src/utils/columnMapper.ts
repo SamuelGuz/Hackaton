@@ -2,6 +2,7 @@ import type { AccountSummary, HealthStatus } from "../types";
 
 export type FieldKey =
   | "ignore"
+  | "accountNumber"
   | "name"
   | "industry"
   | "size"
@@ -32,6 +33,7 @@ export interface FieldDef {
 }
 
 export const TARGET_FIELDS: FieldDef[] = [
+  { key: "accountNumber",        label: "Nº cuenta",        required: false, hint: "Identificador único del cliente (ACC-2024-XXXX)", aliases: ["account_number", "num_cuenta", "numero_cuenta", "account_no", "account_id", "customer_id", "client_id", "id_cuenta", "numero_de_cuenta"] },
   { key: "name",                 label: "Empresa",          required: true,  hint: "Nombre de la cuenta",                  aliases: ["name", "company", "account", "empresa", "cliente", "customer", "company_name", "account_name"] },
   { key: "arrUsd",               label: "ARR (USD)",        required: true,  hint: "Annual recurring revenue en USD",      aliases: ["arr", "arr_usd", "revenue", "ingresos", "annual_revenue", "value", "mrr", "tcv"] },
   { key: "industry",             label: "Industria",        required: true,  hint: "fintech, healthtech, ecommerce, etc.", aliases: ["industry", "industria", "vertical", "sector", "category"] },
@@ -126,6 +128,8 @@ function coerce(value: string | number, field: FieldKey): unknown {
       return str.toLowerCase().replace(/\s+/g, "_");
     case "healthStatus":
       return str.toLowerCase().replace(/\s+/g, "_") as HealthStatus;
+    case "accountNumber":
+      return str;
     default:
       return str;
   }
@@ -169,6 +173,7 @@ export function buildAccounts(
     championPhone?: string;
     championRole?: string;
     slackContact?: string;
+    accountNumber?: string;
   };
 
   rows.forEach((row, idx) => {
@@ -196,6 +201,7 @@ export function buildAccounts(
 
     accounts.push({
       id: `imported-${Date.now()}-${idx}`,
+      accountNumber: acc.accountNumber ? String(acc.accountNumber) : null,
       name: String(acc.name),
       industry: acc.industry || "professional_services",
       size: acc.size || "smb",

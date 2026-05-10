@@ -6,6 +6,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Configure root logger so app modules (backend.*) actually print INFO/WARNING.
+# Uvicorn only sets up handlers for the `uvicorn.*` loggers; without this our
+# `logger.info(...)` and `logger.exception(...)` calls in backend modules
+# disappear silently, which makes debugging webhooks impossible.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+for noisy in ("httpx", "httpcore", "hpack", "urllib3"):
+    logging.getLogger(noisy).setLevel(logging.WARNING)
+
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -55,6 +66,56 @@ app.include_router(playbooks_router, prefix="/api/v1")
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/api/v1/__diag/probe")
+def diag_probe():
+    """Dispara los webhooks de Make desde dentro del proceso uvicorn.
+
+    Sirve para descartar problemas de red/DNS del lado del backend: si esto
+    devuelve 200 por canal, el problema NO está aquí; si devuelve network_error
+    sabemos que el server no puede salir a internet aunque el host sí pueda.
+    """
+    import httpx
+
+    results: dict[str, dict] = {}
+    for env_var, label in (
+        ("MAKE_WEBHOOK_EMAIL", "email"),
+        ("MAKE_WEBHOOK_SLACK", "slack"),
+    ):
+        url = os.environ.get(env_var)
+        if not url:
+            results[label] = {"error": f"{env_var} not set"}
+            continue
+        payload = {
+            "intervention_id": f"DIAG-PROBE-{label.upper()}",
+            "to": "deumc14@gmail.com",
+            "to_name": "Diag",
+            "subject": f"[DIAG] probe from uvicorn — {label}",
+            "body": "Test desde el endpoint /__diag/probe — descartando network del backend.",
+            "account_id": "DIAG",
+            "account_name": "DIAG-PROBE",
+            "slack_message_markdown": f"*[DIAG]* probe from uvicorn — {label}",
+            "status": "sent",
+            "auto_approved": True,
+            "channel": label,
+            "recipient": "deumc14@gmail.com",
+            "trigger_reason": "diag",
+            "confidence": 1.0,
+            "playbook_id": "diag",
+            "approval_reasoning": "diag",
+            "agent_reasoning": "diag",
+            "account_arr": 0,
+            "account_industry": "diag",
+            "account_plan": "diag",
+        }
+        try:
+            r = httpx.post(url, json=payload, timeout=10.0)
+            results[label] = {"status_code": r.status_code, "body": r.text[:200]}
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("diag probe %s failed", label)
+            results[label] = {"error": f"{type(exc).__name__}: {exc}"}
+    return results
 
 
 @app.exception_handler(HTTPException)

@@ -1,4 +1,8 @@
-"""Make.com webhook dispatcher per CONTRACTS.md section 3."""
+"""Make.com webhook dispatcher per CONTRACTS.md section 3.
+
+Sólo expone los webhooks que efectivamente llama el `channel_router`
+(email, slack, whatsapp). El resto se eliminó como código muerto.
+"""
 
 from __future__ import annotations
 
@@ -35,19 +39,35 @@ def slack_approval_notice_markdown(
     )
 
 
-def _post(url: str, payload: dict[str, Any], label: str) -> tuple[bool, str | None]:
+def _post(url: str, payload: dict[str, Any]) -> dict[str, Any]:
+    intervention_id = payload.get("intervention_id")
+    host = url.split("/")[2] if url.startswith("http") else url[:40]
+    logger.info("make_webhook POST %s intervention=%s", host, intervention_id)
     try:
         resp = httpx.post(url, json=payload, timeout=_TIMEOUT_SECS)
-        if resp.status_code >= 400:
-            return False, f"webhook {resp.status_code}: {resp.text[:300]}"
-        return True, None
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("%s webhook post failed", label)
-        return False, str(exc)
-
-
-def _legacy_post(url: str, payload: dict[str, Any]) -> dict[str, Any]:
-    resp = httpx.post(url, json=payload, timeout=_TIMEOUT_SECS)
+    except httpx.HTTPError as exc:
+        logger.warning(
+            "make_webhook %s network error for intervention=%s: %s",
+            host,
+            intervention_id,
+            exc,
+        )
+        raise
+    if resp.status_code >= 400:
+        logger.warning(
+            "make_webhook %s -> %s for intervention=%s body=%s",
+            host,
+            resp.status_code,
+            intervention_id,
+            resp.text[:300],
+        )
+    else:
+        logger.info(
+            "make_webhook %s -> %s for intervention=%s",
+            host,
+            resp.status_code,
+            intervention_id,
+        )
     resp.raise_for_status()
     try:
         return resp.json()
@@ -64,7 +84,7 @@ def send_email(
     account_id: str,
     account_name: str,
 ) -> dict[str, Any]:
-    return _legacy_post(
+    return _post(
         os.environ["MAKE_WEBHOOK_EMAIL"],
         {
             "intervention_id": intervention_id,
@@ -106,7 +126,7 @@ def send_slack(
         trigger_reason=trigger_reason,
         approval_reasoning=approval_reasoning,
     )
-    return _legacy_post(
+    return _post(
         os.environ["MAKE_WEBHOOK_SLACK"],
         {
             "intervention_id": intervention_id,
@@ -138,7 +158,7 @@ def send_whatsapp(
     account_id: str,
     account_name: str,
 ) -> dict[str, Any]:
-    return _legacy_post(
+    return _post(
         os.environ["MAKE_WEBHOOK_WHATSAPP"],
         {
             "intervention_id": intervention_id,
@@ -149,44 +169,3 @@ def send_whatsapp(
             "account_name": account_name,
         },
     )
-
-
-def send_voice(
-    intervention_id: str,
-    to_phone: str,
-    audio_url: str,
-    fallback_text: str,
-    callback_url: str,
-) -> dict[str, Any]:
-    return _legacy_post(
-        os.environ["MAKE_WEBHOOK_VOICE"],
-        {
-            "intervention_id": intervention_id,
-            "to_phone": to_phone,
-            "audio_url": audio_url,
-            "fallback_text": fallback_text,
-            "callback_url": callback_url,
-        },
-    )
-
-
-def _email_webhook_url() -> str | None:
-    return os.environ.get("MAKE_EMAIL_WEBHOOK_URL") or os.environ.get("MAKE_WEBHOOK_URL")
-
-
-def _whatsapp_webhook_url() -> str | None:
-    return os.environ.get("MAKE_WHATSAPP_WEBHOOK_URL")
-
-
-def post_email_webhook(payload: dict[str, Any]) -> tuple[bool, str | None]:
-    url = _email_webhook_url()
-    if not url:
-        return False, "no_webhook_url_configured"
-    return _post(url, payload, "email")
-
-
-def post_whatsapp_webhook(payload: dict[str, Any]) -> tuple[bool, str | None]:
-    url = _whatsapp_webhook_url()
-    if not url:
-        return False, "no_webhook_url_configured"
-    return _post(url, payload, "whatsapp")

@@ -103,6 +103,7 @@ export interface ImportAccountRow {
   churn_risk_score?: number | null;
   expansion_score?: number | null;
   health_status?: HealthStatus | null;
+  account_number?: string | null;
 }
 
 export interface ImportRequest {
@@ -201,6 +202,26 @@ export interface TimelineResponse {
   events: TimelineEvent[];
 }
 
+export interface AccountHealthHistoryItem {
+  id: string;
+  accountId: string;
+  healthStatus: HealthStatus;
+  churnRiskScore: number;
+  expansionScore: number;
+  topSignals: unknown;
+  predictedChurnReason: string | null;
+  crystalBallConfidence: number | null;
+  computedAt: string;
+  computedByVersion: string;
+}
+
+export interface AccountHealthHistoryResponse {
+  items: AccountHealthHistoryItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface InterventionRecommendation {
   /** ID de la fila persistida en `interventions`. Indispensable para dispatch. */
   interventionId: string | null;
@@ -222,22 +243,62 @@ export interface InterventionRecommendation {
   approvalReasoning: string;
 }
 
-export interface DispatchPayload {
-  interventionId?: string;
-  channel: InterventionChannel;
-  recipient: string;
-  messageBody: string;
-  messageSubject?: string;
-}
-
 export interface ChannelDelivery {
   channel: InterventionChannel;
   status: "pending" | "sent" | "delivered" | "failed";
 }
 
-export interface DispatchResponse {
-  dispatched: boolean;
-  channels: ChannelDelivery[];
+/** Sesión live (ej. ConvAI WebSocket) que el dispatch puede inicializar. */
+export interface DispatchSession {
+  sessionMode?: "convai";
+  signedUrl?: string;
+}
+
+export interface DispatchResponse extends DispatchSession {
+  deliveries: ChannelDelivery[];
+}
+
+/** Una entrada de canal en un dispatch multi-canal. */
+export interface ChannelDispatchInput {
+  channel: InterventionChannel;
+  recipient: string;
+  messageSubject?: string | null;
+}
+
+/** Payload para `POST /dispatch-intervention/multi`. */
+export interface MultiDispatchPayload {
+  interventionId: string;
+  messageBody: string;
+  channels: ChannelDispatchInput[];
+  /** Campos opcionales de contexto (account / agente) que el backend reusa para Slack. */
+  toName?: string;
+  accountId?: string;
+  accountName?: string;
+  accountArr?: number;
+  accountIndustry?: string;
+  accountPlan?: string;
+  triggerReason?: string;
+  confidence?: number;
+  playbookId?: string;
+  playbookSuccessRate?: number | null;
+  approvalReasoning?: string;
+  agentReasoning?: string;
+  autoApproved?: boolean;
+  approvalStatus?: string;
+}
+
+export interface ChannelDispatchResult {
+  channel: InterventionChannel;
+  status: "delivered" | "failed";
+  error?: string;
+  /** voice_call: ConvAI WebSocket signed URL devuelto por ElevenLabs. */
+  signedUrl?: string;
+}
+
+export interface MultiDispatchResponse extends DispatchSession {
+  interventionId: string;
+  results: ChannelDispatchResult[];
+  estimatedDeliverySeconds?: number;
 }
 
 export interface Playbook {

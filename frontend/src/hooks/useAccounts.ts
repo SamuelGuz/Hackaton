@@ -13,9 +13,15 @@ export interface AccountStats {
   arrAtRisk: number;
 }
 
-export function useAccounts(filter: AccountFilter, search: string) {
+export function useAccounts(
+  filter: AccountFilter,
+  search: string,
+  accountNumber: string = "all",
+) {
   const { customAccounts } = useDataContext();
   const [all, setAll] = useState<AccountSummary[]>([]);
+  /** Cuentas que coinciden con el filtro de estado (segunda query al API cuando filter !== "all"). */
+  const [accountsForStatusFilter, setAccountsForStatusFilter] = useState<AccountSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
@@ -26,7 +32,6 @@ export function useAccounts(filter: AccountFilter, search: string) {
   }, []);
 
   useEffect(() => {
-    // Si hay data importada por el usuario, la usamos directamente.
     if (customAccounts) {
       setAll(customAccounts);
       setLoading(false);
@@ -35,7 +40,6 @@ export function useAccounts(filter: AccountFilter, search: string) {
       return;
     }
 
-    // Si no, fallback a la API (mock o real).
     setLoading(true);
     setError(null);
     getAccounts("all")
@@ -47,9 +51,39 @@ export function useAccounts(filter: AccountFilter, search: string) {
       .finally(() => setLoading(false));
   }, [customAccounts, fetchNonce]);
 
+  // Segunda query: solo Nº de cuenta del subset que cumple el estado (evita listar 150 cuando hay 3 críticos).
+  useEffect(() => {
+    if (customAccounts) {
+      setAccountsForStatusFilter([]);
+      return;
+    }
+
+    if (filter === "all") {
+      setAccountsForStatusFilter([]);
+      return;
+    }
+
+    const ac = new AbortController();
+
+    getAccounts(filter)
+      .then((res) => {
+        if (ac.signal.aborted) return;
+        setAccountsForStatusFilter(res.accounts);
+      })
+      .catch((e: Error) => {
+        if (ac.signal.aborted || e.name === "AbortError") return;
+        setAccountsForStatusFilter([]);
+      });
+
+    return () => ac.abort();
+  }, [filter, customAccounts]);
+
   const filtered = useMemo(() => {
     let list = all;
     if (filter !== "all") list = list.filter((a) => a.healthStatus === filter);
+    if (accountNumber !== "all") {
+      list = list.filter((a) => (a.accountNumber ?? "") === accountNumber);
+    }
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -61,7 +95,34 @@ export function useAccounts(filter: AccountFilter, search: string) {
       );
     }
     return [...list].sort((a, b) => b.churnRiskScore - a.churnRiskScore);
-  }, [all, filter, search]);
+  }, [all, filter, search, accountNumber]);
+
+  const accountNumbers = useMemo(() => {
+    let source: AccountSummary[];
+    if (customAccounts) {
+      source =
+        filter === "all"
+          ? customAccounts
+          : customAccounts.filter((a) => a.healthStatus === filter);
+    } else if (filter === "all") {
+      source = all;
+    } else {
+      // Respuesta del GET filtrado; si aún no llegó o falló, mismo subset desde la carga completa (sin parpadear el dropdown vacío).
+      source =
+        accountsForStatusFilter.length > 0
+          ? accountsForStatusFilter
+          : all.filter((a) => a.healthStatus === filter);
+    }
+
+    const seen = new Set<string>();
+    for (const a of source) {
+      const n = (a.accountNumber ?? "").trim();
+      if (n) seen.add(n);
+    }
+    return Array.from(seen).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
+    );
+  }, [all, customAccounts, filter, accountsForStatusFilter]);
 
   const stats: AccountStats = useMemo(() => {
     const critical  = all.filter((a) => a.healthStatus === "critical");
@@ -81,5 +142,5 @@ export function useAccounts(filter: AccountFilter, search: string) {
     };
   }, [all]);
 
-  return { accounts: filtered, stats, loading, error, lastFetchedAt, refetch };
+  return { accounts: filtered, accountNumbers, stats, loading, error, lastFetchedAt, refetch };
 }

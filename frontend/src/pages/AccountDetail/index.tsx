@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAccount } from "../../hooks/useAccount";
 import { useInterventions } from "../../hooks/useInterventions";
+import { useHealthHistory } from "../../hooks/useHealthHistory";
 import { useI18n } from "../../context/I18nContext";
 import { CompanyAvatar } from "../../components/CompanyAvatar";
 import { RiskBadge } from "../../components/RiskBadge";
 import { Timeline } from "../../components/Timeline";
+import { HealthHistoryTable } from "../../components/HealthHistoryTable";
 import { ScoreBar } from "../../components/ScoreBar";
 import { InterventionModal } from "../../components/InterventionModal";
+import { VoiceCallPanel } from "../../components/VoiceCallPanel";
 import { SurfaceCard } from "../../components/SurfaceCard";
 import { humanizeI18n, formatArr, formatRenewal, daysUntil } from "../../utils/format";
 import { isOpenInterventionStatus } from "../../constants/interventions";
@@ -17,6 +20,18 @@ const SVG = {
   fill: "none", stroke: "currentColor",
   strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
 };
+
+// Estados no terminales: bloquean lanzar una intervención nueva.
+// Terminales: `rejected`, `failed` o cualquiera con outcome != null.
+// `responded` se considera abierto hasta que un CSM registre el outcome.
+const OPEN_INTERVENTION_STATUSES: InterventionStatus[] = [
+  "pending_approval",
+  "pending",
+  "sent",
+  "delivered",
+  "opened",
+  "responded",
+];
 
 function MetricBlock({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -32,16 +47,43 @@ export default function AccountDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { account, events, loading, error } = useAccount(id);
-  const { interventions: accountInterventions, loading: interventionsLoading } = useInterventions(
-    id ? { accountId: id } : {}
-  );
+  const {
+    interventions: accountInterventions,
+    loading: interventionsLoading,
+    refetch: refetchInterventions,
+  } = useInterventions(id ? { accountId: id } : {});
   const { t } = useI18n();
   const [modalOpen, setModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"activity" | "history">("activity");
+  const {
+    items: historyItems,
+    loading: historyLoading,
+    error: historyError,
+  } = useHealthHistory(id, activeTab === "history");
+  const [voiceSession, setVoiceSession] = useState<{
+    interventionId: string;
+    signedUrl: string;
+    triggerReason?: string;
+    messageBody?: string;
+    championName?: string;
+    companyName?: string;
+    csmName?: string;
+  } | null>(null);
 
+  // Una intervención está "activa" si todavía no terminó su ciclo (no resuelta, no rechazada).
+  // Mientras la lista carga devolvemos `null` para evitar abrir el modal en un falso "limpio"
+  // (race que dispara un POST /agents/intervention y duplica fila).
+  const interventionsReady = !interventionsLoading;
   const activeIntervention = useMemo(() => {
-    return accountInterventions.find((i) => isOpenInterventionStatus(i.status)) ?? null;
-  }, [accountInterventions]);
+    if (!interventionsReady) return null;
+    return (
+      accountInterventions.find((i) =>
+        OPEN_INTERVENTION_STATUSES.includes(i.status)
+      ) ?? null
+    );
+  }, [accountInterventions, interventionsReady]);
   const hasActiveIntervention = activeIntervention !== null;
+  const ctaGateLoading = !interventionsReady;
 
   useEffect(() => {
     if (!interventionsLoading && hasActiveIntervention && modalOpen) {
@@ -134,14 +176,86 @@ export default function AccountDetail() {
       {/* Body */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <SurfaceCard weight="panel" tone="neutral" hoverLift={false} motionIndex={1} className="lg:col-span-2 p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-sm font-semibold text-white tracking-tight">{t("detail.activity")}</h2>
-            <span className="text-[11px] text-slate-500">{events.length} {t("detail.events")}</span>
+          <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
+            <div role="tablist" aria-label="Account detail sections" className="relative inline-flex p-0.5 bg-slate-900/60 border border-slate-800/80 rounded-lg">
+              {(["activity", "history"] as const).map((tab) => {
+                const isActive = activeTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setActiveTab(tab)}
+                    className={`relative px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                      isActive ? "text-white" : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.span
+                        layoutId="account-detail-tab-pill"
+                        className="absolute inset-0 bg-slate-800/80 border border-slate-700/80 rounded-md"
+                        transition={{ type: "spring", stiffness: 500, damping: 36 }}
+                      />
+                    )}
+                    <span className="relative z-[1]">
+                      {tab === "activity" ? t("detail.activity") : t("history.tab")}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[11px] text-slate-500 tabular-nums">
+              {activeTab === "activity"
+                ? `${events.length} ${t("detail.events")}`
+                : historyLoading
+                ? t("history.loading")
+                : `${historyItems.length} ${t("history.snapshots")}`}
+            </span>
           </div>
-          <Timeline events={events} />
+
+          <AnimatePresence mode="wait">
+            {activeTab === "activity" ? (
+              <motion.div
+                key="activity"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Timeline events={events} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="history"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+              >
+                <HealthHistoryTable
+                  items={historyItems}
+                  loading={historyLoading}
+                  error={historyError}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </SurfaceCard>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+          {voiceSession && (
+            <VoiceCallPanel
+              interventionId={voiceSession.interventionId}
+              signedUrl={voiceSession.signedUrl}
+              triggerReason={voiceSession.triggerReason ?? ""}
+              messageBody={voiceSession.messageBody ?? ""}
+              championName={voiceSession.championName ?? account.champion.name}
+              companyName={voiceSession.companyName ?? account.name}
+              csmName={voiceSession.csmName ?? account.csm.name}
+              onClose={() => setVoiceSession(null)}
+            />
+          )}
+
           {/* Crystal Ball */}
           <SurfaceCard tone="rose" motionIndex={2} className="p-5 bg-[linear-gradient(155deg,rgba(190,18,60,0.08)_0%,rgba(10,12,18,0.92)_55%,rgba(6,8,14,0.96)_100%)]">
             <div className="flex items-center gap-2 mb-3">
@@ -203,11 +317,17 @@ export default function AccountDetail() {
             </p>
           </SurfaceCard>
 
-          {/* CTA — wait for interventions list so we do not open the modal (POST creates a row) on stale empty state */}
-          {interventionsLoading ? (
-            <div className="w-full space-y-2">
-              <div className="h-[46px] w-full rounded-xl bg-slate-800/60 animate-pulse" aria-hidden />
-              <div className="h-3 w-2/3 mx-auto rounded bg-slate-800/40 animate-pulse" aria-hidden />
+          {/* CTA */}
+          {ctaGateLoading ? (
+            <div className="w-full">
+              <button
+                disabled
+                aria-busy="true"
+                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-slate-800/60 border border-slate-700/60 text-slate-400 text-sm font-semibold rounded-xl cursor-wait"
+              >
+                <span className="w-3.5 h-3.5 border-2 border-slate-600 border-t-slate-300 rounded-full animate-spin" />
+                {t("detail.ctaLoading")}
+              </button>
             </div>
           ) : hasActiveIntervention ? (
             <div className="w-full">
@@ -234,10 +354,14 @@ export default function AccountDetail() {
           ) : (
             <>
               <button
+                disabled={interventionsLoading}
                 onClick={() => setModalOpen(true)}
-                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gradient-to-br from-rose-500 to-orange-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-500/20 hover:from-rose-400 hover:to-orange-400 hover:shadow-rose-500/40 transition-all"
+                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gradient-to-br from-rose-500 to-orange-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-500/20 hover:from-rose-400 hover:to-orange-400 hover:shadow-rose-500/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <svg {...SVG} strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
+                {interventionsLoading
+                  ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  : <svg {...SVG} strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
+                }
                 {t("detail.ctaButton")}
               </button>
 
@@ -256,7 +380,12 @@ export default function AccountDetail() {
           accountId={account.id}
           accountName={account.name}
           champion={account.champion}
-          onClose={() => setModalOpen(false)}
+          onClose={() => {
+            setModalOpen(false);
+            refetchInterventions();
+          }}
+          onLaunched={refetchInterventions}
+          onVoiceSessionStart={(payload) => setVoiceSession(payload)}
         />
       )}
     </div>
