@@ -202,6 +202,12 @@ def _apply_playbook_outcome(sb: Client, playbook_id: str, outcome: str) -> None:
     except Exception as exc:
         logger.warning("Failed to update playbook_memory for %s: %s", playbook_id, exc)
 
+    try:
+        from backend.agents.learning_loop import regenerate_playbook_if_failing
+        regenerate_playbook_if_failing(playbook_id)
+    except Exception:
+        logger.exception("regen via customer-response failed for %s", playbook_id)
+
 
 # ---------- endpoints ----------
 
