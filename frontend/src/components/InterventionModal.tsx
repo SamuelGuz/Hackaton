@@ -67,12 +67,11 @@ export function InterventionModal({
   const toast = useToast();
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     async function load() {
       try {
-        const r = await getIntervention(accountId);
-        if (cancelled) return;
+        const r = await getIntervention(accountId, "churn_risk_high", controller.signal);
         // eslint-disable-next-line no-console
         console.debug("[InterventionModal] agent OK", {
           interventionId: r.interventionId,
@@ -83,20 +82,14 @@ export function InterventionModal({
         setRec(r);
         setMessage(r.messageBody);
         setRecipient(r.recipient || defaultRecipient(r.recommendedChannel, champion));
-        // Si requiere aprobación humana o el status es pending_approval, bloqueamos launch.
-        const needsApproval =
-          r?.status === "pending_approval" ||
-          r?.requiresApproval === true;
-        if (needsApproval) {
-          setCooloffMsg(t("modal.needsApprovalBody"));
-          setPhase("cooloff");
-          return;
-        }
+        // Siempre pasamos a "ready" — si requiresApproval=true se muestra un badge
+        // informativo en el formulario. El click en "Launch" es la aprobación del CSM.
         setPhase("ready");
       } catch (err) {
-        if (cancelled) return;
-        // Duck typing en lugar de instanceof — más robusto frente a HMR / dos copias del módulo.
+        // AbortError significa que el cleanup de React canceló el request — ignorar silenciosamente.
         const e = err as { status?: number; message?: string; name?: string } | null | undefined;
+        if (e?.name === "AbortError") return;
+        // Duck typing en lugar de instanceof — más robusto frente a HMR / dos copias del módulo.
         const status = e?.status;
         // eslint-disable-next-line no-console
         console.debug("[InterventionModal] agent ERROR", { name: e?.name, status, message: e?.message });
@@ -111,7 +104,9 @@ export function InterventionModal({
     }
 
     load();
-    return () => { cancelled = true; };
+    // Al desmontar (o al doble-mount de StrictMode) cancelamos el fetch en vuelo
+    // para evitar que se creen dos intervenciones simultáneas en la BD.
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
 
@@ -282,6 +277,15 @@ export function InterventionModal({
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.32, ease: panelEase, delay: 0.04 }}
             >
+              {rec.requiresApproval && (
+                <div className="mx-6 mt-5 flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/[0.07]">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-300 shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <p className="text-[11px] text-amber-200 leading-relaxed">
+                    {t("modal.approvalRequired")}
+                  </p>
+                </div>
+              )}
+
               <div className="mx-6 mt-5 p-3.5 rounded-xl border border-indigo-500/22 bg-gradient-to-br from-indigo-500/[0.07] to-violet-600/[0.04] shadow-inner">
                 <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-300 shrink-0"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>

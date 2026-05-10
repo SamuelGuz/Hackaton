@@ -124,12 +124,12 @@ def dispatch_intervention(body: DispatchRequest):
             detail={"error": "intervention_not_found", "message": f"intervention {body.intervention_id} not found"},
         )
     current_status = str(rows[0].get("status") or "")
-    if current_status not in ("pending", "approved"):
+    if current_status not in ("pending", "approved", "pending_approval"):
         raise HTTPException(
             status_code=409,
             detail={
                 "error": "intervention_not_approved",
-                "message": f"intervention status is '{current_status}', must be 'pending' or 'approved' to dispatch",
+                "message": f"intervention status is '{current_status}', must be 'pending', 'approved' or 'pending_approval' to dispatch",
             },
         )
 

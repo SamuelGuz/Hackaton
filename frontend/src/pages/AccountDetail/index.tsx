@@ -32,7 +32,11 @@ export default function AccountDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { account, events, loading, error } = useAccount(id);
-  const { interventions: accountInterventions } = useInterventions(id ? { accountId: id } : {});
+  const {
+    interventions: accountInterventions,
+    loading: interventionsLoading,
+    refetch: refetchInterventions,
+  } = useInterventions(id ? { accountId: id } : {});
   const { t } = useI18n();
   const [modalOpen, setModalOpen] = useState(false);
   const [voiceSession, setVoiceSession] = useState<{
@@ -237,10 +241,14 @@ export default function AccountDetail() {
           ) : (
             <>
               <button
+                disabled={interventionsLoading}
                 onClick={() => setModalOpen(true)}
-                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gradient-to-br from-rose-500 to-orange-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-500/20 hover:from-rose-400 hover:to-orange-400 hover:shadow-rose-500/40 transition-all"
+                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gradient-to-br from-rose-500 to-orange-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-500/20 hover:from-rose-400 hover:to-orange-400 hover:shadow-rose-500/40 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <svg {...SVG} strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
+                {interventionsLoading
+                  ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  : <svg {...SVG} strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
+                }
                 {t("detail.ctaButton")}
               </button>
 
@@ -260,7 +268,10 @@ export default function AccountDetail() {
           accountName={account.name}
           champion={account.champion}
           onVoiceSessionStart={(payload) => setVoiceSession(payload)}
-          onClose={() => setModalOpen(false)}
+          onClose={() => {
+            setModalOpen(false);
+            refetchInterventions();
+          }}
         />
       )}
     </div>

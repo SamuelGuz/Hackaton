@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
@@ -35,6 +36,51 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
+_IDEMPOTENCY_WINDOW_SECONDS = 30
+
+
+def _load_fresh_intervention(account_id: str) -> dict[str, Any] | None:
+    """Devuelve la intervención más reciente si fue creada en los últimos
+    _IDEMPOTENCY_WINDOW_SECONDS segundos y sigue sin despachar.
+    Previene la creación de duplicados por requests concurrentes (ej. React StrictMode).
+    """
+    sb = get_supabase()
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(seconds=_IDEMPOTENCY_WINDOW_SECONDS)
+    ).isoformat()
+    res = (
+        sb.table("interventions")
+        .select("*")
+        .eq("account_id", account_id)
+        .in_("status", ["pending", "pending_approval"])
+        .gte("created_at", cutoff)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    rows = getattr(res, "data", None) or []
+    if not rows:
+        return None
+    row = rows[0]
+    return {
+        "intervention_id": row.get("id"),
+        "account_id": row.get("account_id"),
+        "trigger_reason": row.get("trigger_reason", ""),
+        "recommended_channel": row.get("channel"),
+        "recipient": row.get("recipient", ""),
+        "message_subject": row.get("message_subject"),
+        "message_body": row.get("message_body", ""),
+        "playbook_id_used": row.get("playbook_id_used"),
+        "playbook_success_rate_at_decision": None,
+        "agent_reasoning": row.get("agent_reasoning", ""),
+        "confidence": float(row.get("confidence_score") or 0.0),
+        "requires_approval": bool(row.get("requires_approval")),
+        "approval_reasoning": "",
+        "status": row.get("status"),
+        "auto_approved": bool(row.get("auto_approved")),
+    }
+
+
 def _account_exists(account_id: str) -> bool:
     sb = get_supabase()
     res = (
@@ -58,6 +104,14 @@ def intervention(
     background: BackgroundTasks,
 ) -> dict:
     """Run the Intervention Engine and notify CSM via Slack in the background."""
+    # Idempotencia: si ya existe una intervención creada en los últimos
+    # _IDEMPOTENCY_WINDOW_SECONDS segundos, devolver la misma en vez de crear un duplicado.
+    # Protege contra dobles requests concurrentes (React StrictMode, double-click, etc.).
+    existing = _load_fresh_intervention(account_id)
+    if existing:
+        logger.debug("intervention idempotency hit for %s — returning existing %s", account_id, existing.get("intervention_id"))
+        return existing
+
     try:
         output: InterventionOutput = run_intervention(account_id, body.trigger_reason)
     except AccountNotFound:
