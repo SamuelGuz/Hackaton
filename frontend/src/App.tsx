@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import AccountDetail from "./pages/AccountDetail";
 import ClosedLoop from "./pages/ClosedLoop";
+import Interventions from "./pages/Interventions";
 import Upload from "./pages/Upload";
 import { ToastProvider } from "./components/Toast";
 import { DataProvider } from "./context/DataContext";
@@ -28,6 +29,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/accounts/:id" element={<AccountDetail />} />
+                <Route path="/interventions" element={<Interventions />} />
                 <Route path="/closed-loop" element={<ClosedLoop />} />
                 <Route path="/upload" element={<Upload />} />
               </Routes>

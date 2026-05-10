@@ -33,6 +33,13 @@ function IconUpload() {
     </svg>
   );
 }
+function IconInterventions() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="5 3 19 12 5 21 5 3" />
+    </svg>
+  );
+}
 
 /* ─── Language Toggle ──────────────────────────────────────────── */
 function LangToggle() {
@@ -174,6 +181,7 @@ export default function Navbar() {
         {/* Nav links */}
         <nav className="flex gap-0.5 flex-1">
           <NavItem to="/" end icon={<IconDashboard />} label={t("nav.dashboard")} />
+          <NavItem to="/interventions" icon={<IconInterventions />} label={t("nav.interventions")} />
           <NavItem to="/closed-loop" icon={<IconLoop />} label={t("nav.closedLoop")} />
           <NavItem to="/upload" icon={<IconUpload />} label={t("nav.import")} />
         </nav>

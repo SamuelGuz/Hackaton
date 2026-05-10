@@ -39,8 +39,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(accounts_router, prefix="/api/v1")
 app.include_router(accounts_import_router, prefix="/api/v1")
+app.include_router(accounts_router, prefix="/api/v1")
 app.include_router(agents_router, prefix="/api/v1")
 app.include_router(dispatch_router, prefix="/api/v1")
 app.include_router(playbooks_router, prefix="/api/v1")
