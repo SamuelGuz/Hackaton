@@ -1,16 +1,17 @@
 import { apiFetch, USE_MOCK } from "./client";
 import type {
   ChannelDelivery,
-  DispatchPayload,
+  ChannelDispatchResult,
   DispatchResponse,
   InterventionChannel,
+  MultiDispatchPayload,
+  MultiDispatchResponse,
 } from "../types";
 
 export type DeliveryListener = (deliveries: ChannelDelivery[]) => void;
 
-const ALL_CHANNELS: InterventionChannel[] = ["email", "slack", "whatsapp", "voice_call"];
-
-// Tiempos de entrega simulados (ms) — escalonados para sentir "real-time"
+// Tiempos de entrega simulados (ms) — sólo para el modo mock; escalonados para
+// que la UI sienta "real-time" durante demos sin backend.
 const MOCK_TIMING: Record<InterventionChannel, number> = {
   email:      900,
   slack:      1500,
@@ -18,25 +19,27 @@ const MOCK_TIMING: Record<InterventionChannel, number> = {
   voice_call: 3800,
 };
 
-export async function dispatchIntervention(
-  payload: DispatchPayload,
+/**
+ * Despacha la intervención por uno o varios canales en una sola request.
+ * `deliveries` y la sesión live (signedUrl) sólo cubren los canales seleccionados.
+ */
+export async function dispatchInterventionMulti(
+  payload: MultiDispatchPayload,
   onProgress?: DeliveryListener
 ): Promise<DispatchResponse> {
+  const selectedChannels = payload.channels.map((c) => c.channel);
   if (USE_MOCK) {
-    // Simulamos los 4 canales aunque solo se haya pedido uno (es el wow del demo)
-    const deliveries: ChannelDelivery[] = ALL_CHANNELS.map((channel) => ({
+    const deliveries: ChannelDelivery[] = selectedChannels.map((channel) => ({
       channel,
       status: "pending",
     }));
-    onProgress?.(deliveries);
+    onProgress?.([...deliveries]);
 
-    // Marcar "sending" inmediatamente
     deliveries.forEach((d) => (d.status = "sent"));
     onProgress?.([...deliveries]);
 
-    // Entregas escalonadas
     await Promise.all(
-      ALL_CHANNELS.map(
+      selectedChannels.map(
         (channel) =>
           new Promise<void>((resolve) => {
             setTimeout(() => {
@@ -49,60 +52,92 @@ export async function dispatchIntervention(
       )
     );
 
+    const includesVoice = selectedChannels.includes("voice_call");
     return {
       deliveries,
-      sessionMode: payload.channel === "voice_call" ? "convai" : undefined,
-      signedUrl:
-        payload.channel === "voice_call"
-          ? "wss://api.elevenlabs.io/v1/convai/conversation?agent_id=demo&conversation_signature=mock"
-          : undefined,
+      sessionMode: includesVoice ? "convai" : undefined,
+      signedUrl: includesVoice
+        ? "wss://api.elevenlabs.io/v1/convai/conversation?agent_id=demo&conversation_signature=mock"
+        : undefined,
     };
   }
 
-  // El backend solo despacha un canal a la vez y devuelve { intervention_id, status, channel, ... }
-  // Mostramos los 4 canales: el elegido en estado real + los demás como "no aplica" (queued).
-  const initial: ChannelDelivery[] = ALL_CHANNELS.map((channel) => ({
+  // Pre-marcamos todos los canales seleccionados como "sent" mientras corre la request.
+  const pending: ChannelDelivery[] = selectedChannels.map((channel) => ({
     channel,
-    status: channel === payload.channel ? "sent" : "pending",
+    status: "sent",
   }));
-  onProgress?.([...initial]);
+  onProgress?.([...pending]);
+
+  const channelsBody = payload.channels.map((c) => ({
+    channel: c.channel,
+    recipient: c.recipient,
+    message_subject: c.messageSubject ?? null,
+  }));
 
   const res = await apiFetch<{
-    interventionId?: string;
-    status: "dispatched" | "sent" | "delivered" | "failed";
-    channel: InterventionChannel;
-    sessionMode?: "convai";
-    signedUrl?: string;
-    error?: string;
-  }>("/dispatch-intervention", {
+    intervention_id: string;
+    results: Array<{
+      channel: InterventionChannel;
+      status: "delivered" | "failed";
+      error?: string;
+      signed_url?: string;
+    }>;
+    session_mode?: "convai";
+    signed_url?: string;
+    estimated_delivery_seconds?: number;
+  }>("/dispatch-intervention/multi", {
     method: "POST",
     body: JSON.stringify({
       intervention_id: payload.interventionId,
-      channel: payload.channel,
-      recipient: payload.recipient,
       message_body: payload.messageBody,
-      message_subject: payload.messageSubject,
+      channels: channelsBody,
+      to_name: payload.toName,
+      account_id: payload.accountId,
+      account_name: payload.accountName,
+      account_arr: payload.accountArr,
+      account_industry: payload.accountIndustry,
+      account_plan: payload.accountPlan,
+      trigger_reason: payload.triggerReason,
+      confidence: payload.confidence,
+      playbook_id: payload.playbookId,
+      playbook_success_rate: payload.playbookSuccessRate,
+      approval_reasoning: payload.approvalReasoning,
+      agent_reasoning: payload.agentReasoning,
+      auto_approved: payload.autoApproved,
+      approval_status: payload.approvalStatus,
     }),
   });
 
-  // Mapear el resultado del backend al estado UI del canal elegido.
-  const finalStatus: ChannelDelivery["status"] =
-    res.status === "failed"     ? "failed"
-    : res.status === "delivered" ? "delivered"
-    : "delivered"; // "sent"/"dispatched" → consideramos entregado para el demo
+  // apiFetch ya hizo camelCase: results[].channel/status/error/signedUrl, session_mode → sessionMode, etc.
+  const camel = res as unknown as MultiDispatchResponse;
 
-  const final: ChannelDelivery[] = ALL_CHANNELS.map((channel) => ({
-    channel,
-    status: channel === payload.channel ? finalStatus : "pending",
-  }));
-  onProgress?.([...final]);
+  const resultMap = new Map<InterventionChannel, ChannelDispatchResult>();
+  (camel.results ?? []).forEach((r) => resultMap.set(r.channel, r));
 
-  if (res.status === "failed") {
-    throw new Error(res.error || "dispatch_failed");
+  const deliveries: ChannelDelivery[] = selectedChannels.map((channel) => {
+    const r = resultMap.get(channel);
+    return {
+      channel,
+      status: r?.status === "delivered" ? "delivered" : r?.status === "failed" ? "failed" : "sent",
+    };
+  });
+  onProgress?.([...deliveries]);
+
+  // Si todos fallaron, levantamos error con el primer mensaje útil.
+  const allFailed = deliveries.every((d) => d.status === "failed");
+  if (allFailed) {
+    const firstErr = (camel.results ?? []).find((r) => r.error)?.error;
+    throw new Error(firstErr || "dispatch_failed");
   }
+
+  // Si voice_call está y vino signedUrl en el resultado por canal, lo preferimos al top-level.
+  const voiceResult = resultMap.get("voice_call");
+  const signedUrl = voiceResult?.signedUrl ?? camel.signedUrl;
+
   return {
-    deliveries: final,
-    sessionMode: res.sessionMode,
-    signedUrl: res.signedUrl,
+    deliveries,
+    sessionMode: signedUrl ? "convai" : camel.sessionMode,
+    signedUrl,
   };
 }

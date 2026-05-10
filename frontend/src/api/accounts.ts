@@ -6,6 +6,7 @@ import type {
   TimelineResponse,
   ImportRequest,
   ImportResponse,
+  AccountHealthHistoryResponse,
 } from "../types";
 
 export type AccountFilter = "all" | "critical" | "at_risk" | "stable" | "healthy" | "expanding";
@@ -33,6 +34,22 @@ export async function getAccount(id: string): Promise<AccountDetail> {
 export async function getTimeline(id: string): Promise<TimelineResponse> {
   if (USE_MOCK) return mockTimeline;
   return apiFetch<TimelineResponse>(`/accounts/${id}/timeline`);
+}
+
+export async function getAccountHealthHistory(
+  id: string,
+  opts: { limit?: number; offset?: number } = {}
+): Promise<AccountHealthHistoryResponse> {
+  if (USE_MOCK) {
+    return { items: [], total: 0, limit: opts.limit ?? 100, offset: opts.offset ?? 0 };
+  }
+  const params = new URLSearchParams();
+  if (opts.limit) params.set("limit", String(opts.limit));
+  if (opts.offset) params.set("offset", String(opts.offset));
+  const qs = params.toString();
+  return apiFetch<AccountHealthHistoryResponse>(
+    `/accounts/${id}/health-history${qs ? `?${qs}` : ""}`
+  );
 }
 
 export async function importAccounts(payload: ImportRequest): Promise<ImportResponse> {

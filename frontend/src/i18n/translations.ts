@@ -118,7 +118,12 @@ const TRANSLATIONS = {
   "dash.filterStable":   { es: "Estable",     en: "Stable" },
   "dash.filterHealthy":  { es: "Saludable",   en: "Healthy" },
   "dash.filterExpand":   { es: "Expansión",   en: "Expansion" },
-  "dash.searchPlaceholder": { es: "Buscar empresa, industria o CSM...", en: "Search company, industry or CSM..." },
+  "dash.searchPlaceholder": { es: "Buscar empresa, Nº cuenta, industria o CSM...", en: "Search company, account #, industry or CSM..." },
+  "dash.filterStatus":         { es: "Estado",                 en: "Status" },
+  "dash.filterAccount":        { es: "Nº cuenta",              en: "Account #" },
+  "dash.filterAccountAll":     { es: "Todas las cuentas",      en: "All accounts" },
+  "dash.filterAccountSearch":  { es: "Buscar Nº de cuenta…",   en: "Search account #…" },
+  "dash.filterAccountEmpty":   { es: "Sin coincidencias",      en: "No matches" },
   "dash.colIndex":    { es: "#",                en: "#" },
   "dash.colAccountNumber": { es: "Nº cuenta", en: "Account #" },
   "dash.exportLabel": { es: "Exportar",         en: "Export" },
@@ -157,6 +162,7 @@ const TRANSLATIONS = {
   "detail.ctaActiveTitle":  { es: "Intervención en curso",     en: "Intervention in progress" },
   "detail.ctaActiveBody":   { es: "Esta cuenta ya tiene una intervención ({status}). Esperá a que se resuelva antes de lanzar una nueva.", en: "This account already has an active intervention ({status}). Wait until it's resolved before launching a new one." },
   "detail.ctaActiveLink":   { es: "Ver intervención",          en: "View intervention" },
+  "detail.ctaLoading":      { es: "Verificando intervenciones…", en: "Checking interventions…" },
   "detail.renewalUrgent":   { es: "días para la renovación · actuá ahora", en: "days to renewal · act now" },
   "detail.renewalExpired":  { es: "Renovación vencida · prioridad máxima", en: "Renewal expired · maximum priority" },
   "detail.labelArr":        { es: "ARR",              en: "ARR" },
@@ -170,6 +176,20 @@ const TRANSLATIONS = {
   "detail.severityHigh":    { es: "Alta",             en: "High" },
   "detail.severityMed":     { es: "Media",            en: "Medium" },
   "detail.severityLow":     { es: "Baja",             en: "Low" },
+
+  // Health history tab
+  "history.tab":            { es: "Historial",                en: "History" },
+  "history.empty":          { es: "Sin snapshots de salud para esta cuenta todavía.", en: "No health snapshots for this account yet." },
+  "history.loading":        { es: "Cargando…",                en: "Loading…" },
+  "history.snapshots":      { es: "snapshots",                en: "snapshots" },
+  "history.trendChurn":     { es: "Churn risk · actual",      en: "Churn risk · current" },
+  "history.trendExpansion": { es: "Expansion · actual",        en: "Expansion · current" },
+  "history.colDate":        { es: "Calculado",                en: "Computed" },
+  "history.colStatus":      { es: "Estado",                    en: "Status" },
+  "history.colChurn":       { es: "Churn risk",                en: "Churn risk" },
+  "history.colExpansion":   { es: "Expansion",                 en: "Expansion" },
+  "history.colConfidence":  { es: "Confianza",                 en: "Confidence" },
+  "history.colVersion":     { es: "Versión",                   en: "Version" },
 
   // Timeline event types
   "timeline.ticket":       { es: "Ticket",    en: "Ticket" },
@@ -202,9 +222,13 @@ const TRANSLATIONS = {
   "modal.deliveryStatus":{ es: "Estado de entrega en vivo",  en: "Live delivery status" },
   "modal.cancel":        { es: "Cancelar",                   en: "Cancel" },
   "modal.close":         { es: "Cerrar",                     en: "Close" },
-  "modal.launch":        { es: "Lanzar intervención multi-canal", en: "Launch multi-channel intervention" },
-  "modal.launching":     { es: "Entregando en {n} canales...", en: "Delivering on {n} channels..." },
-  "modal.done":          { es: "4 canales entregados",        en: "4 channels delivered" },
+  "modal.launch":        { es: "Lanzar intervención",          en: "Launch intervention" },
+  "modal.launchMulti":   { es: "Lanzar en {n} canales",         en: "Launch on {n} channels" },
+  "modal.launching":     { es: "Entregando en {n} canales...",  en: "Delivering on {n} channels..." },
+  "modal.done":          { es: "Entrega completada",            en: "Delivery completed" },
+  "modal.recipientFor":           { es: "Destinatario · {label}",                en: "Recipient · {label}" },
+  "modal.channelMissingContact":  { es: "El champion no tiene {label}",          en: "Champion has no {label}" },
+  "modal.selectAtLeastOne":       { es: "Seleccioná al menos un canal",          en: "Select at least one channel" },
   "modal.statusDelivered":{ es: "Entregado",  en: "Delivered" },
   "modal.statusSending":  { es: "Enviando...", en: "Sending..." },
   "modal.statusFailed":   { es: "Falló",       en: "Failed" },
@@ -316,11 +340,12 @@ const TRANSLATIONS = {
   "up.fieldIgnore": { es: "— ignorar columna —",   en: "— ignore column —" },
 
   // Toasts
-  "toast.interventionOk":   { es: "4 canales entregados con éxito", en: "4 channels delivered successfully" },
+  "toast.interventionOk":   { es: "Intervención despachada", en: "Intervention dispatched" },
   "toast.interventionError":{ es: "Error al lanzar la intervención", en: "Error launching intervention" },
   "toast.recError":         { es: "No se pudo cargar la recomendación", en: "Could not load recommendation" },
 
   // ── Headers del template Excel (también usados en la UI de mapeo) ─────────
+  "col.accountNumber":        { es: "num_cuenta",          en: "account_number" },
   "col.name":                 { es: "empresa",             en: "company" },
   "col.industry":             { es: "industria",           en: "industry" },
   "col.size":                 { es: "tamaño",              en: "size" },
@@ -341,6 +366,7 @@ const TRANSLATIONS = {
   "col.expansionScore":       { es: "score_expansion",     en: "expansion_score" },
 
   // ── Labels de campos en la UI de mapeo ────────────────────────────────────
+  "fieldLabel.accountNumber":      { es: "Nº cuenta",            en: "Account #" },
   "fieldLabel.name":               { es: "Empresa",              en: "Company" },
   "fieldLabel.industry":           { es: "Industria",            en: "Industry" },
   "fieldLabel.size":               { es: "Tamaño",               en: "Size" },

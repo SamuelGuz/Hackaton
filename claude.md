@@ -15,7 +15,7 @@ This is a 4-person team. Each contributor owns ONE layer:
 
 - **Persona 1** — data + database + base FastAPI (`/backend/data`, `/backend/main.py`, `/backend/routes/accounts.py`)
 - **Persona 2** — agents + closed-loop (`/backend/agents`, `/backend/routes/agents.py`, `/backend/routes/playbooks.py`)
-- **Persona 3** — automations + voice + Make (`/backend/automations`, `/backend/routes/dispatch.py`)
+- **Persona 3** — automations + voice + Make (`/backend/automations` — `channel_router.py` es el router de dispatch)
 - **Persona 4** — frontend + demo (`/frontend`)
 
 If `my-role.md` doesn't exist in the repo root, ASK the user which persona they are before generating code that crosses layer boundaries.

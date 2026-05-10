@@ -1,14 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getIntervention } from "../api/agents";
-import { dispatchIntervention } from "../api/dispatch";
+import { dispatchInterventionMulti } from "../api/dispatch";
 import { ChannelIcon } from "./ChannelIcon";
-import { VoiceCallPanel } from "./VoiceCallPanel";
 import { useToast } from "./Toast";
 import { useI18n } from "../context/I18nContext";
-import type { ChannelDelivery, Champion, InterventionChannel, InterventionRecommendation } from "../types";
+import type {
+  ChannelDelivery,
+  ChannelDispatchInput,
+  Champion,
+  InterventionChannel,
+  InterventionRecommendation,
+} from "../types";
 
-type Phase = "loading" | "ready" | "dispatching" | "in_call" | "done" | "error" | "cooloff";
+type Phase =
+  | "loading"
+  | "ready"
+  | "dispatching"
+  | "done"
+  | "error"
+  // Bloqueado porque ya hay otra intervención abierta para esta cuenta (HTTP 409 /
+  // `open_intervention_exists`). El form NO se muestra: solo el mensaje de cool-off.
+  | "cooloff";
 
 const ALL_CHANNELS: InterventionChannel[] = ["email", "slack", "whatsapp", "voice_call"];
 
@@ -36,6 +49,10 @@ interface Props {
   accountName: string;
   champion: Pick<Champion, "name" | "email" | "phone" | "slackContact">;
   onClose: () => void;
+  /** Llamado cuando la intervención se persiste con éxito o termina exitosamente, para que
+   *  el padre refresque su lista (y el CTA pase a "Intervención en curso") sin recargar. */
+  onLaunched?: () => void;
+  /** voice_call: el backend devolvió signed_url ConvAI; el padre abre el VoiceCallPanel. */
   onVoiceSessionStart?: (payload: { interventionId: string; signedUrl: string }) => void;
 }
 
@@ -47,6 +64,20 @@ function defaultRecipient(channel: InterventionChannel, champion: Props["champio
   return "";
 }
 
+/** Devuelve true si el champion no tiene contacto para el canal (campo vacío o "—"). */
+function isChannelDisabled(channel: InterventionChannel, champion: Props["champion"]): boolean {
+  return defaultRecipient(channel, champion).trim() === "";
+}
+
+function buildRecipientsMap(champion: Props["champion"]): Record<InterventionChannel, string> {
+  return {
+    email:      defaultRecipient("email", champion),
+    slack:      defaultRecipient("slack", champion),
+    whatsapp:   defaultRecipient("whatsapp", champion),
+    voice_call: defaultRecipient("voice_call", champion),
+  };
+}
+
 const panelEase = [0.22, 1, 0.36, 1] as const;
 
 export function InterventionModal({
@@ -54,6 +85,7 @@ export function InterventionModal({
   accountName,
   champion,
   onClose,
+  onLaunched,
   onVoiceSessionStart,
 }: Props) {
   const { t } = useI18n();
@@ -61,15 +93,23 @@ export function InterventionModal({
   const [rec, setRec] = useState<InterventionRecommendation | null>(null);
   const [cooloffMsg, setCooloffMsg] = useState("");
   const [message, setMessage] = useState("");
-  const [recipient, setRecipient] = useState("");
-  const [deliveries, setDeliveries] = useState<ChannelDelivery[]>(
-    ALL_CHANNELS.map((channel) => ({ channel, status: "pending" }))
+  // Multi-canal: el usuario tilda 1+ canales; se manda solo a los seleccionados.
+  const [selectedChannels, setSelectedChannels] = useState<Set<InterventionChannel>>(new Set());
+  // Recipient por canal (no un único campo). Default = contacto del champion.
+  const [recipients, setRecipients] = useState<Record<InterventionChannel, string>>(() =>
+    buildRecipientsMap(champion)
   );
-  const [callSignedUrl, setCallSignedUrl] = useState<string | null>(null);
+  // `deliveries` solo trackea los canales seleccionados al lanzar (no los 4).
+  const [deliveries, setDeliveries] = useState<ChannelDelivery[]>([]);
   const toast = useToast();
 
   useEffect(() => {
+    // El backend serializa con un lock por account_id y devuelve la intervención
+    // existente si ya hay una abierta — esto evita los duplicados que en
+    // StrictMode generaba el doble mount aun cuando el AbortController cancelaba
+    // el primer fetch en cliente.
     const controller = new AbortController();
+    let launchNotified = false;
 
     async function load() {
       try {
@@ -83,21 +123,39 @@ export function InterventionModal({
         });
         setRec(r);
         setMessage(r.messageBody);
-        setRecipient(r.recipient || defaultRecipient(r.recommendedChannel, champion));
-        // Siempre pasamos a "ready" — si requiresApproval=true se muestra un badge
-        // informativo en el formulario. El click en "Launch" es la aprobación del CSM.
+        // Pre-seleccionamos solo el canal recomendado, salvo que esté deshabilitado por
+        // falta de contacto del champion (evita lanzar a un canal sin destinatario).
+        if (!isChannelDisabled(r.recommendedChannel, champion)) {
+          setSelectedChannels(new Set([r.recommendedChannel]));
+        }
+        // Si el backend devolvió un recipient específico para el canal recomendado, lo usamos.
+        if (r.recipient) {
+          setRecipients((prev) => ({ ...prev, [r.recommendedChannel]: r.recipient }));
+        }
+        // El backend ya persistió la intervención: el padre debe refrescar para mostrar
+        // "intervención en curso" si el modal se cierra antes de despachar.
+        if (!launchNotified) {
+          launchNotified = true;
+          onLaunched?.();
+        }
+        // Siempre vamos a "ready". Si requiresApproval=true mostramos un banner ámbar y el
+        // click en "Lanzar" actúa como aprobación CSM (el endpoint /multi acepta
+        // pending_approval). Esto reemplaza la fase awaiting_approval anterior.
         setPhase("ready");
       } catch (err) {
-        // AbortError significa que el cleanup de React canceló el request — ignorar silenciosamente.
         const e = err as { status?: number; message?: string; name?: string } | null | undefined;
+        // AbortError: cleanup de StrictMode canceló el fetch — silencioso.
         if (e?.name === "AbortError") return;
-        // Duck typing en lugar de instanceof — más robusto frente a HMR / dos copias del módulo.
         const status = e?.status;
         // eslint-disable-next-line no-console
         console.debug("[InterventionModal] agent ERROR", { name: e?.name, status, message: e?.message });
-        if (status === 409 || (e?.message ?? "").includes("status=pending_approval") || (e?.message ?? "").includes("last intervention")) {
+        if (status === 409 || (e?.message ?? "").includes("status=pending_approval") || (e?.message ?? "").includes("last intervention") || (e?.message ?? "").includes("open_intervention_exists")) {
           setCooloffMsg(e?.message || t("modal.cooloffBody"));
           setPhase("cooloff");
+          if (!launchNotified) {
+            launchNotified = true;
+            onLaunched?.();
+          }
           return;
         }
         setPhase("error");
@@ -106,8 +164,6 @@ export function InterventionModal({
     }
 
     load();
-    // Al desmontar (o al doble-mount de StrictMode) cancelamos el fetch en vuelo
-    // para evitar que se creen dos intervenciones simultáneas en la BD.
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
@@ -126,38 +182,83 @@ export function InterventionModal({
       toast.push(t("toast.interventionError"), "error");
       return;
     }
+    const channelsToSend: InterventionChannel[] = Array.from(selectedChannels);
+    if (channelsToSend.length === 0) {
+      toast.push(t("modal.selectAtLeastOne"), "error");
+      return;
+    }
+    const missingRecipient = channelsToSend.find((ch) => !(recipients[ch] ?? "").trim());
+    if (missingRecipient) {
+      toast.push(t("toast.interventionError"), "error");
+      return;
+    }
+
+    const channelsPayload: ChannelDispatchInput[] = channelsToSend.map((channel) => ({
+      channel,
+      recipient: recipients[channel],
+      messageSubject: rec.messageSubject ?? null,
+    }));
+
     setPhase("dispatching");
-    setDeliveries(ALL_CHANNELS.map((channel) => ({ channel, status: "pending" })));
+    setDeliveries(channelsToSend.map((channel) => ({ channel, status: "pending" })));
     try {
-      const dispatchResult = await dispatchIntervention(
+      const result = await dispatchInterventionMulti(
         {
           interventionId: rec.interventionId,
-          channel: rec.recommendedChannel,
-          recipient,
           messageBody: message,
+          channels: channelsPayload,
+          accountId: rec.accountId,
+          triggerReason: rec.triggerReason,
+          confidence: rec.confidence,
+          playbookId: rec.playbookIdUsed ?? undefined,
+          playbookSuccessRate: rec.playbookSuccessRateAtDecision,
+          agentReasoning: rec.agentReasoning,
+          autoApproved: rec.autoApproved,
+          approvalReasoning: rec.approvalReasoning,
+          approvalStatus: rec.status,
         },
         (next) => setDeliveries(next)
       );
+      // voice_call: si el backend devolvió signedUrl, abrimos el panel ConvAI.
       if (
-        rec.recommendedChannel === "voice_call" &&
-        dispatchResult.signedUrl &&
+        channelsToSend.includes("voice_call") &&
+        result.signedUrl &&
         rec.interventionId
       ) {
-        setCallSignedUrl(dispatchResult.signedUrl);
-        setPhase("in_call");
-        toast.push("Llamada iniciada", "success");
-        return;
+        onVoiceSessionStart?.({
+          interventionId: rec.interventionId,
+          signedUrl: result.signedUrl,
+        });
       }
       setPhase("done");
       toast.push(t("toast.interventionOk"), "success");
     } catch (err) {
-      setDeliveries(ALL_CHANNELS.map((channel) => ({ channel, status: "pending" })));
+      setDeliveries([]);
       setPhase("ready");
       const e = err as { message?: string } | null | undefined;
       const msg = e?.message || t("toast.interventionError");
       toast.push(msg, "error");
     }
   }
+
+  function toggleChannel(channel: InterventionChannel) {
+    if (isChannelDisabled(channel, champion)) return;
+    setSelectedChannels((prev) => {
+      const next = new Set(prev);
+      if (next.has(channel)) next.delete(channel);
+      else next.add(channel);
+      return next;
+    });
+  }
+
+  // Habilitamos "Lanzar" si hay al menos un canal y todos sus recipients tienen valor.
+  const launchEnabled = useMemo(() => {
+    if (selectedChannels.size === 0) return false;
+    for (const ch of selectedChannels) {
+      if (!(recipients[ch] ?? "").trim()) return false;
+    }
+    return true;
+  }, [selectedChannels, recipients]);
 
   const recommendedSet = new Set<InterventionChannel>([rec?.recommendedChannel ?? "email"]);
   const allDelivered = phase === "done" && deliveries.every((d) => d.status === "delivered");
@@ -194,9 +295,7 @@ export function InterventionModal({
                 {t("modal.title", { name: accountName })}
               </p>
               <h2 className="text-lg font-semibold text-white tracking-tight">
-                {phase === "in_call"
-                  ? "Llamada en curso"
-                  : phase === "done"
+                {phase === "done"
                   ? t("modal.titleDone")
                   : phase === "cooloff"
                     ? t("modal.titleCooloff")
@@ -275,32 +374,12 @@ export function InterventionModal({
             )}
           </AnimatePresence>
 
-          {(phase === "ready" || phase === "dispatching" || phase === "done" || phase === "in_call") && rec && (
+          {(phase === "ready" || phase === "dispatching" || phase === "done") && rec && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.32, ease: panelEase, delay: 0.04 }}
             >
-              {phase === "in_call" && (
-                <div className="px-6 py-6 space-y-4">
-                  <VoiceCallPanel
-                    signedUrl={callSignedUrl ?? ""}
-                    interventionId={rec.interventionId ?? ""}
-                    triggerReason={rec.triggerReason ?? "churn_risk_high"}
-                    messageBody={message}
-                    championName={champion.name ?? "cliente"}
-                    companyName={accountName}
-                    csmName="Diego"
-                    onClose={() => {
-                      setPhase("done");
-                      toast.push("Llamada finalizada", "success");
-                    }}
-                  />
-                </div>
-              )}
-
-              {phase !== "in_call" && (
-                <>
               {rec.requiresApproval && (
                 <div className="mx-6 mt-5 flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/[0.07]">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-300 shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -333,61 +412,78 @@ export function InterventionModal({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {ALL_CHANNELS.map((ch) => {
                     const isRec = recommendedSet.has(ch);
+                    const isSelected = selectedChannels.has(ch);
+                    const isDisabled = isChannelDisabled(ch, champion);
+                    const interactive = !isDisabled && phase !== "dispatching" && phase !== "done";
+                    const channelLabel = t(`channel.${ch}` as string);
                     return (
-                      <motion.div
+                      <motion.button
                         key={ch}
-                        whileHover={{ y: -2 }}
+                        type="button"
+                        onClick={() => interactive && toggleChannel(ch)}
+                        disabled={!interactive}
+                        whileHover={interactive ? { y: -2 } : undefined}
                         transition={{ type: "spring", stiffness: 400, damping: 28 }}
-                        className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-xs font-medium transition-colors ${isRec ? "bg-indigo-500/12 border-indigo-500/45 text-indigo-100 shadow-[0_0_20px_-8px_rgba(99,102,241,0.45)]" : "bg-slate-950/40 border-slate-800/90 text-slate-500"}`}
+                        title={isDisabled ? t("modal.channelMissingContact", { label: channelLabel }) : undefined}
+                        aria-pressed={isSelected}
+                        className={`relative flex flex-col items-center gap-1 p-3 rounded-xl border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/45 ${
+                          isDisabled
+                            ? "bg-slate-950/40 border-slate-800/60 text-slate-600 opacity-50 cursor-not-allowed"
+                            : isSelected
+                              ? "bg-indigo-500/15 border-indigo-500/55 text-indigo-100 shadow-[0_0_20px_-8px_rgba(99,102,241,0.45)] cursor-pointer"
+                              : "bg-slate-950/40 border-slate-800/90 text-slate-400 hover:border-slate-700 hover:text-slate-200 cursor-pointer"
+                        } ${!interactive && !isDisabled ? "opacity-70 cursor-not-allowed" : ""}`}
                       >
+                        {isSelected && !isDisabled && (
+                          <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-indigo-500 flex items-center justify-center">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </span>
+                        )}
                         <ChannelIcon channel={ch} />
-                        <span>{t(`channel.${ch}` as string)}</span>
-                        {isRec && <span className="text-[9px] text-indigo-400 font-semibold uppercase tracking-wider">{t("modal.suggested")}</span>}
-                      </motion.div>
+                        <span>{channelLabel}</span>
+                        {isRec && !isDisabled && (
+                          <span className="text-[9px] text-indigo-400 font-semibold uppercase tracking-wider">{t("modal.suggested")}</span>
+                        )}
+                        {isDisabled && (
+                          <span className="text-[9px] text-slate-600 font-medium">{t("modal.channelMissingContact", { label: channelLabel })}</span>
+                        )}
+                      </motion.button>
                     );
                   })}
                 </div>
               </div>
 
-              <div className="px-6 pt-4 space-y-3">
-                <div>
+              {selectedChannels.size > 0 && (
+                <div className="px-6 pt-4 space-y-2">
                   <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
                     {t("modal.recipient")}
                   </label>
-                  <input
-                    type="text"
-                    value={recipient}
-                    onChange={(e) => setRecipient(e.target.value)}
-                    disabled={phase !== "ready"}
-                    className="w-full bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/55 focus:ring-1 focus:ring-indigo-500/25 disabled:opacity-60 transition-shadow"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
-                    {t("modal.contacts", { name: champion.name })}
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {([
-                      { icon: "✉", label: "Email",   value: champion.email,        channel: "email" as InterventionChannel },
-                      { icon: "💬", label: "Slack",  value: champion.slackContact, channel: "slack" as InterventionChannel },
-                      { icon: "📞", label: "Tel/WA", value: champion.phone,        channel: "voice_call" as InterventionChannel },
-                    ] as const).map(({ icon, label, value }) => (
-                      <button
-                        key={label}
-                        type="button"
-                        disabled={phase !== "ready" || !value || value === "—"}
-                        onClick={() => setRecipient(value ?? "")}
-                        title={value || "N/A"}
-                        className="text-left px-3 py-2 bg-slate-950/40 border border-slate-800 rounded-lg hover:bg-slate-800/70 hover:border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/35"
-                      >
-                        <div className="text-[10px] text-slate-500">{icon} {label}</div>
-                        <div className="text-xs text-slate-200 truncate">{value && value !== "—" ? value : "—"}</div>
-                      </button>
-                    ))}
+                  <div className="space-y-2">
+                    {ALL_CHANNELS.filter((ch) => selectedChannels.has(ch)).map((ch) => {
+                      const channelLabel = t(`channel.${ch}` as string);
+                      return (
+                        <div key={ch} className="flex items-center gap-2">
+                          <span className="text-slate-500 shrink-0 w-5 flex justify-center">
+                            <ChannelIcon channel={ch} />
+                          </span>
+                          <input
+                            type="text"
+                            value={recipients[ch] ?? ""}
+                            onChange={(e) =>
+                              setRecipients((prev) => ({ ...prev, [ch]: e.target.value }))
+                            }
+                            disabled={phase === "dispatching" || phase === "done"}
+                            placeholder={t("modal.recipientFor", { label: channelLabel })}
+                            className="flex-1 bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/55 focus:ring-1 focus:ring-indigo-500/25 disabled:opacity-60 transition-shadow"
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">{t("modal.clickToUse")}</p>
                 </div>
-              </div>
+              )}
 
               <div className="px-6 pt-4 pb-1">
                 <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-1.5">
@@ -396,7 +492,7 @@ export function InterventionModal({
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  disabled={phase !== "ready"}
+                  disabled={phase === "dispatching" || phase === "done"}
                   rows={5}
                   className="w-full bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-slate-100 leading-relaxed focus:outline-none focus:border-indigo-500/55 focus:ring-1 focus:ring-indigo-500/25 disabled:opacity-60 resize-none"
                 />
@@ -452,19 +548,22 @@ export function InterventionModal({
                   <motion.button
                     type="button"
                     onClick={launch}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-semibold bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 shadow-lg shadow-indigo-900/40 hover:from-indigo-400 hover:via-indigo-500 hover:to-violet-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                    disabled={!launchEnabled}
+                    whileHover={launchEnabled ? { scale: 1.02 } : undefined}
+                    whileTap={launchEnabled ? { scale: 0.98 } : undefined}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-semibold bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 shadow-lg shadow-indigo-900/40 hover:from-indigo-400 hover:via-indigo-500 hover:to-violet-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:opacity-50 disabled:cursor-not-allowed disabled:from-slate-700 disabled:via-slate-700 disabled:to-slate-700 disabled:shadow-none"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                    {t("modal.launch")}
+                    {selectedChannels.size > 1
+                      ? t("modal.launchMulti", { n: selectedChannels.size })
+                      : t("modal.launch")}
                   </motion.button>
                 )}
 
                 {phase === "dispatching" && (
                   <span className="text-sm font-medium text-indigo-300 flex items-center gap-2">
                     <span className="w-3.5 h-3.5 border-2 border-indigo-400/40 border-t-indigo-300 rounded-full animate-spin" />
-                    {t("modal.launching", { n: ALL_CHANNELS.length })}
+                    {t("modal.launching", { n: deliveries.length })}
                   </span>
                 )}
 
@@ -479,10 +578,6 @@ export function InterventionModal({
                   </motion.span>
                 )}
               </div>
-                </>
-              )}
-
-              {phase === "in_call" && null}
             </motion.div>
           )}
         </div>

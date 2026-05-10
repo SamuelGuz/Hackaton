@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+import threading
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -20,6 +21,7 @@ from backend.agents.expansion import (
     run_expansion,
 )
 from backend.agents.intervention_engine import (
+    OPEN_INTERVENTION_STATUSES,
     AccountNotFound,
     CoolOffActive,
     InterventionError,
@@ -36,24 +38,41 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
-_IDEMPOTENCY_WINDOW_SECONDS = 30
+# Lock por account_id para serializar requests concurrentes al mismo destino.
+# React StrictMode dispara dos POSTs casi simultáneos; sin esto ambos pasan los
+# checks de idempotencia (lectura) antes de que ninguno haya insertado, y
+# terminan creando dos filas. El lock vive en memoria del proceso uvicorn —
+# suficiente para single-worker dev/demo. Para multi-worker conviene un lock
+# distribuido (Redis / advisory lock de Postgres), fuera de scope acá.
+_ACCOUNT_LOCKS: dict[str, threading.Lock] = {}
+_ACCOUNT_LOCKS_GUARD = threading.Lock()
 
 
-def _load_fresh_intervention(account_id: str) -> dict[str, Any] | None:
-    """Devuelve la intervención más reciente si fue creada en los últimos
-    _IDEMPOTENCY_WINDOW_SECONDS segundos y sigue sin despachar.
-    Previene la creación de duplicados por requests concurrentes (ej. React StrictMode).
+def _account_lock(account_id: str) -> threading.Lock:
+    with _ACCOUNT_LOCKS_GUARD:
+        lock = _ACCOUNT_LOCKS.get(account_id)
+        if lock is None:
+            lock = threading.Lock()
+            _ACCOUNT_LOCKS[account_id] = lock
+        return lock
+
+
+def _load_open_intervention(account_id: str) -> dict[str, Any] | None:
+    """Devuelve cualquier intervención abierta (no terminal) para esta cuenta.
+
+    Cubre dos casos:
+    - Idempotencia para requests duplicados del frontend (StrictMode/double-click):
+      en vez de tirar 409 por cool-off, devolvemos la fila existente y el modal
+      sigue su flujo normal con el mismo `intervention_id`.
+    - Defensa contra duplicados: cualquier estado no terminal cuenta (incluye
+      `sent`, `delivered`, etc.); así un re-mount tardío tampoco crea otra fila.
     """
     sb = get_supabase()
-    cutoff = (
-        datetime.now(timezone.utc) - timedelta(seconds=_IDEMPOTENCY_WINDOW_SECONDS)
-    ).isoformat()
     res = (
         sb.table("interventions")
         .select("*")
         .eq("account_id", account_id)
-        .in_("status", ["pending", "pending_approval"])
-        .gte("created_at", cutoff)
+        .in_("status", list(OPEN_INTERVENTION_STATUSES))
         .order("created_at", desc=True)
         .limit(1)
         .execute()
@@ -104,31 +123,37 @@ def intervention(
     background: BackgroundTasks,
 ) -> dict:
     """Run the Intervention Engine and notify CSM via Slack in the background."""
-    # Idempotencia: si ya existe una intervención creada en los últimos
-    # _IDEMPOTENCY_WINDOW_SECONDS segundos, devolver la misma en vez de crear un duplicado.
-    # Protege contra dobles requests concurrentes (React StrictMode, double-click, etc.).
-    existing = _load_fresh_intervention(account_id)
-    if existing:
-        logger.debug("intervention idempotency hit for %s — returning existing %s", account_id, existing.get("intervention_id"))
-        return existing
+    # Lock por cuenta + idempotencia: si ya existe una intervención abierta para
+    # esta cuenta, devolvemos esa misma fila. El lock evita que dos POSTs
+    # concurrentes (StrictMode, doble click) lean ambos "no existe" antes de
+    # que el primero alcance a insertar.
+    with _account_lock(account_id):
+        existing = _load_open_intervention(account_id)
+        if existing:
+            logger.debug(
+                "intervention idempotency hit for %s — returning existing %s",
+                account_id,
+                existing.get("intervention_id"),
+            )
+            return existing
 
-    try:
-        output: InterventionOutput = run_intervention(account_id, body.trigger_reason)
-    except AccountNotFound:
-        raise HTTPException(status_code=404, detail="account_not_found")
-    except SnapshotMissing:
-        raise HTTPException(
-            status_code=409,
-            detail="health_snapshot_missing — run crystal-ball or expansion first",
-        )
-    except CoolOffActive as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    except InvalidOutputError:
-        logger.exception("intervention engine returned invalid output for %s", account_id)
-        raise HTTPException(status_code=500, detail="engine_invalid_output")
-    except InterventionError as exc:
-        logger.exception("intervention engine failed for %s", account_id)
-        raise HTTPException(status_code=500, detail=str(exc))
+        try:
+            output: InterventionOutput = run_intervention(account_id, body.trigger_reason)
+        except AccountNotFound:
+            raise HTTPException(status_code=404, detail="account_not_found")
+        except SnapshotMissing:
+            raise HTTPException(
+                status_code=409,
+                detail="health_snapshot_missing — run crystal-ball or expansion first",
+            )
+        except CoolOffActive as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        except InvalidOutputError:
+            logger.exception("intervention engine returned invalid output for %s", account_id)
+            raise HTTPException(status_code=500, detail="engine_invalid_output")
+        except InterventionError as exc:
+            logger.exception("intervention engine failed for %s", account_id)
+            raise HTTPException(status_code=500, detail=str(exc))
 
     account = _load_account(account_id) or {}
     background.add_task(notify_csm, output, account)
