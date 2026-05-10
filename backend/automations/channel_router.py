@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from supabase import create_client, Client
 
-from .elevenlabs_client import generate_audio
+from .elevenlabs_client import get_convai_signed_url
 from . import make_webhooks
 
 router = APIRouter(prefix="/dispatch-intervention", tags=["dispatch"])
@@ -104,6 +104,7 @@ def _update_intervention(intervention_id: str, data: dict) -> None:
 @router.post("", status_code=202)
 def dispatch_intervention(body: DispatchRequest):
     audio_url: str | None = None
+    signed_url: str | None = None
     fallback_used = False
 
     # Validar que la intervención existe y está aprobada antes de despachar.
@@ -176,22 +177,8 @@ def dispatch_intervention(body: DispatchRequest):
             )
 
         elif body.channel == "voice_call":
-            voice_id = body.voice_config.voice_id if body.voice_config else None
-            try:
-                audio_bytes = generate_audio(body.message_body, voice_id)
-                audio_url = _upload_audio(audio_bytes, body.intervention_id)
-            except Exception:
-                # ElevenLabs or storage failed — use pre-recorded fallback
-                audio_url = os.environ.get("FALLBACK_AUDIO_URL", "")
-                fallback_used = True
-
-            make_webhooks.send_voice(
-                intervention_id=body.intervention_id,
-                to_phone=body.recipient,
-                audio_url=audio_url,
-                fallback_text=body.message_body,
-                callback_url=callback,
-            )
+            agent_id = os.environ.get("ELEVENLABS_AGENT_ID")
+            signed_url = get_convai_signed_url(agent_id)
 
         else:
             raise HTTPException(
@@ -223,6 +210,9 @@ def dispatch_intervention(body: DispatchRequest):
     if fallback_used:
         response["fallback_used"] = True
         response["fallback_audio_url"] = audio_url
+    if signed_url:
+        response["session_mode"] = "convai"
+        response["signed_url"] = signed_url
 
     return response
 

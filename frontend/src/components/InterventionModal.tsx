@@ -35,6 +35,7 @@ interface Props {
   accountName: string;
   champion: Pick<Champion, "name" | "email" | "phone" | "slackContact">;
   onClose: () => void;
+  onVoiceSessionStart?: (payload: { interventionId: string; signedUrl: string }) => void;
 }
 
 function defaultRecipient(channel: InterventionChannel, champion: Props["champion"]): string {
@@ -47,7 +48,13 @@ function defaultRecipient(channel: InterventionChannel, champion: Props["champio
 
 const panelEase = [0.22, 1, 0.36, 1] as const;
 
-export function InterventionModal({ accountId, accountName, champion, onClose }: Props) {
+export function InterventionModal({
+  accountId,
+  accountName,
+  champion,
+  onClose,
+  onVoiceSessionStart,
+}: Props) {
   const { t } = useI18n();
   const [phase, setPhase] = useState<Phase>("loading");
   const [rec, setRec] = useState<InterventionRecommendation | null>(null);
@@ -125,7 +132,7 @@ export function InterventionModal({ accountId, accountName, champion, onClose }:
     setPhase("dispatching");
     setDeliveries(ALL_CHANNELS.map((channel) => ({ channel, status: "pending" })));
     try {
-      await dispatchIntervention(
+      const dispatchResult = await dispatchIntervention(
         {
           interventionId: rec.interventionId,
           channel: rec.recommendedChannel,
@@ -134,6 +141,16 @@ export function InterventionModal({ accountId, accountName, champion, onClose }:
         },
         (next) => setDeliveries(next)
       );
+      if (
+        rec.recommendedChannel === "voice_call" &&
+        dispatchResult.signedUrl &&
+        rec.interventionId
+      ) {
+        onVoiceSessionStart?.({
+          interventionId: rec.interventionId,
+          signedUrl: dispatchResult.signedUrl,
+        });
+      }
       setPhase("done");
       toast.push(t("toast.interventionOk"), "success");
     } catch (err) {

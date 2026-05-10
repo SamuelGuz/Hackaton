@@ -8,6 +8,7 @@ import { RiskBadge } from "../../components/RiskBadge";
 import { Timeline } from "../../components/Timeline";
 import { ScoreBar } from "../../components/ScoreBar";
 import { InterventionModal } from "../../components/InterventionModal";
+import { VoiceCallPanel } from "../../components/VoiceCallPanel";
 import { SurfaceCard } from "../../components/SurfaceCard";
 import { humanizeI18n, formatArr, formatRenewal, daysUntil } from "../../utils/format";
 
@@ -34,6 +35,10 @@ export default function AccountDetail() {
   const { interventions: accountInterventions } = useInterventions(id ? { accountId: id } : {});
   const { t } = useI18n();
   const [modalOpen, setModalOpen] = useState(false);
+  const [voiceSession, setVoiceSession] = useState<{
+    interventionId: string;
+    signedUrl: string;
+  } | null>(null);
 
   // Una intervención está "activa" si todavía no terminó su ciclo (no resuelta, no rechazada).
   // status pending_approval, pending, sent, delivered, opened → bloquean nuevas.
@@ -137,6 +142,14 @@ export default function AccountDetail() {
         </SurfaceCard>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+          {voiceSession && (
+            <VoiceCallPanel
+              interventionId={voiceSession.interventionId}
+              signedUrl={voiceSession.signedUrl}
+              onClose={() => setVoiceSession(null)}
+            />
+          )}
+
           {/* Crystal Ball */}
           <SurfaceCard tone="rose" motionIndex={2} className="p-5 bg-[linear-gradient(155deg,rgba(190,18,60,0.08)_0%,rgba(10,12,18,0.92)_55%,rgba(6,8,14,0.96)_100%)]">
             <div className="flex items-center gap-2 mb-3">
@@ -246,6 +259,7 @@ export default function AccountDetail() {
           accountId={account.id}
           accountName={account.name}
           champion={account.champion}
+          onVoiceSessionStart={(payload) => setVoiceSession(payload)}
           onClose={() => setModalOpen(false)}
         />
       )}
