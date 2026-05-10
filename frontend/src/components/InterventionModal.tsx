@@ -24,6 +24,10 @@ type Phase =
   | "cooloff";
 
 const ALL_CHANNELS: InterventionChannel[] = ["email", "slack", "whatsapp", "voice_call"];
+// Slack queda oculto del UI pero la funcionalidad sigue viva: el tipo, el dispatch,
+// los recipients map y el ChannelIcon siguen aceptándolo. Si más adelante querés
+// reactivarlo, basta con devolverlo a esta lista.
+const VISIBLE_CHANNELS: InterventionChannel[] = ALL_CHANNELS.filter((c) => c !== "slack");
 
 function StatusDot({ status }: { status: ChannelDelivery["status"] | "queued" }) {
   if (status === "delivered") {
@@ -125,7 +129,12 @@ export function InterventionModal({
         setMessage(r.messageBody);
         // Pre-seleccionamos solo el canal recomendado, salvo que esté deshabilitado por
         // falta de contacto del champion (evita lanzar a un canal sin destinatario).
-        if (!isChannelDisabled(r.recommendedChannel, champion)) {
+        // Slack está oculto del UI: si lo recomienda, no pre-seleccionamos nada para
+        // forzar que el usuario elija explícitamente entre los canales visibles.
+        if (
+          r.recommendedChannel !== "slack" &&
+          !isChannelDisabled(r.recommendedChannel, champion)
+        ) {
           setSelectedChannels(new Set([r.recommendedChannel]));
         }
         // Si el backend devolvió un recipient específico para el canal recomendado, lo usamos.
@@ -409,8 +418,8 @@ export function InterventionModal({
                 <label className="block text-[10px] uppercase tracking-widest font-semibold text-slate-500 mb-2">
                   {t("modal.channel")}
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {ALL_CHANNELS.map((ch) => {
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {VISIBLE_CHANNELS.map((ch) => {
                     const isRec = recommendedSet.has(ch);
                     const isSelected = selectedChannels.has(ch);
                     const isDisabled = isChannelDisabled(ch, champion);
@@ -461,7 +470,7 @@ export function InterventionModal({
                     {t("modal.recipient")}
                   </label>
                   <div className="space-y-2">
-                    {ALL_CHANNELS.filter((ch) => selectedChannels.has(ch)).map((ch) => {
+                    {VISIBLE_CHANNELS.filter((ch) => selectedChannels.has(ch)).map((ch) => {
                       const channelLabel = t(`channel.${ch}` as string);
                       return (
                         <div key={ch} className="flex items-center gap-2">

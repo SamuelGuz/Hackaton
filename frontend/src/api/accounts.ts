@@ -7,6 +7,8 @@ import type {
   ImportRequest,
   ImportResponse,
   AccountHealthHistoryResponse,
+  CreateAccountPayload,
+  CreateAccountResponse,
 } from "../types";
 
 export type AccountFilter = "all" | "critical" | "at_risk" | "stable" | "healthy" | "expanding";
@@ -70,6 +72,21 @@ export async function importAccounts(payload: ImportRequest): Promise<ImportResp
 export interface ImportCsm {
   id: string;
   name: string;
+}
+
+export async function createAccount(payload: CreateAccountPayload): Promise<CreateAccountResponse> {
+  if (USE_MOCK) {
+    return {
+      inserted: true,
+      skipped: false,
+      account_id: `mock-${Date.now()}`,
+      message: "Cuenta creada correctamente",
+    };
+  }
+  return apiFetch<CreateAccountResponse>("/accounts", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function getImportCsms(): Promise<ImportCsm[]> {

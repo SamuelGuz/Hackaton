@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAccount } from "../../hooks/useAccount";
@@ -85,12 +85,6 @@ export default function AccountDetail() {
   }, [accountInterventions, interventionsReady]);
   const hasActiveIntervention = activeIntervention !== null;
   const ctaGateLoading = !interventionsReady;
-
-  useEffect(() => {
-    if (!interventionsLoading && hasActiveIntervention && modalOpen) {
-      setModalOpen(false);
-    }
-  }, [interventionsLoading, hasActiveIntervention, modalOpen]);
 
   const severityClass = (sev: string) =>
     sev === "high"   ? "bg-rose-500/15 text-rose-300 border-rose-500/30" :

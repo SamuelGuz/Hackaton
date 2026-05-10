@@ -116,6 +116,27 @@ class InterventionRequest(BaseModel):
     trigger_reason: str = Field(..., min_length=1)
 
 
+@router.post("/intervention/run-all")
+def run_all_interventions() -> dict:
+    """Trigger placeholder for batch intervention automation.
+
+    Stub endpoint — the teammate will wire up the actual automation logic here.
+    For now, also cleans up any leftover `auto_batch_trigger` interventions from
+    earlier test runs so that the per-account InterventionModal keeps working
+    (it auto-closes if `hasActiveIntervention` is true on the AccountDetail).
+    """
+    sb = get_supabase()
+    cleanup = (
+        sb.table("interventions")
+        .delete()
+        .eq("trigger_reason", "auto_batch_trigger")
+        .in_("status", list(OPEN_INTERVENTION_STATUSES))
+        .execute()
+    )
+    cleaned = len(getattr(cleanup, "data", None) or [])
+    return {"triggered": 0, "skipped": 0, "errors": [], "cleaned_up": cleaned}
+
+
 @router.post("/intervention/{account_id}")
 def intervention(
     account_id: str,
