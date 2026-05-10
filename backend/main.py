@@ -11,6 +11,8 @@ from fastapi.responses import JSONResponse
 
 from backend.routes.agents import router as agents_router
 from backend.routes.accounts import router as accounts_router
+from backend.routes.accounts_import import router as accounts_import_router
+from backend.routes.dispatch import router as dispatch_router
 from backend.routes.playbooks import router as playbooks_router
 
 app = FastAPI(title="Churn Oracle API")
@@ -36,7 +38,9 @@ app.add_middleware(
 )
 
 app.include_router(accounts_router, prefix="/api/v1")
+app.include_router(accounts_import_router, prefix="/api/v1")
 app.include_router(agents_router, prefix="/api/v1")
+app.include_router(dispatch_router, prefix="/api/v1")
 app.include_router(playbooks_router, prefix="/api/v1")
 
 

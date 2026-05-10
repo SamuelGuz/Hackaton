@@ -40,10 +40,15 @@ const TEMPLATE_FIELD_KEYS = [
   "col.name",
   "col.industry",
   "col.size",
+  "col.geography",
   "col.plan",
   "col.arrUsd",
+  "col.seatsPurchased",
+  "col.seatsActive",
+  "col.signupDate",
   "col.championName",
   "col.championEmail",
+  "col.championRole",
   "col.championPhone",
   "col.slackContact",
   "col.csmAssigned",
@@ -61,19 +66,22 @@ export function downloadTemplate(t: TFn) {
   // Datos de ejemplo — los valores son los enums que el sistema espera (inglés)
   const sampleValues = [
     [
-      "Acme Corp", "fintech", "mid_market", "growth", 48000,
-      "María Pérez", "maria@acmecorp.com", "+57 300 1234567", "@maria.perez",
-      "Carlos López", "2026-08-15", 91, 14,
+      "Acme Corp", "fintech", "mid_market", "latam", "growth", 48000,
+      50, 19, "2024-03-10",
+      "María Pérez", "maria@acmecorp.com", "VP Operations", "+57 300 1234567", "@maria.perez",
+      "Ana Restrepo", "2026-08-15", 91, 14,
     ],
     [
-      "BetaCo", "ecommerce", "smb", "starter", 18000,
-      "Luis Ramírez", "luis@betaco.com", "+1 415 555 0182", "#betaco-success",
-      "Ana Torres", "2026-09-01", 74, 41,
+      "BetaCo", "ecommerce", "smb", "us", "starter", 18000,
+      15, 12, "2024-08-20",
+      "Luis Ramírez", "luis@betaco.com", "Head of Growth", "+1 415 555 0182", "#betaco-success",
+      "Diego Martínez", "2026-09-01", 74, 41,
     ],
     [
-      "GammaInc", "healthtech", "smb", "growth", 32000,
-      "Sofia Mendez", "sofia@gammainc.com", "+52 55 1234 5678", "@sofia.mendez",
-      "Martina Ruiz", "2026-12-01", 8, 88,
+      "GammaInc", "healthtech", "smb", "latam", "growth", 32000,
+      25, 23, "2025-01-05",
+      "Sofia Mendez", "sofia@gammainc.com", "CTO", "+52 55 1234 5678", "@sofia.mendez",
+      "Sofía Hernández", "2026-12-01", 8, 88,
     ],
   ];
 
