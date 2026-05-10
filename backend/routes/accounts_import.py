@@ -165,9 +165,13 @@ def _import_accounts_rows(rows: list[Any]) -> ImportResponse:
             continue
 
         account_id = str(uuid.uuid4())
+        compact_id = account_id.replace("-", "").upper()
+        explicit_acct = (row.account_number or "").strip() if row.account_number else ""
+        resolved_acct = explicit_acct or f"ACC-{datetime.now(timezone.utc).year}-{compact_id[:10]}"
+
         account_payload = {
             "id": account_id,
-            "account_number": number,
+            "account_number": resolved_acct,
             "name": row.name.strip(),
             "industry": row.industry,
             "size": row.size,

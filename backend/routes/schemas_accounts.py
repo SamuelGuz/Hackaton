@@ -21,7 +21,7 @@ class AccountListItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str
-    account_number: str
+    account_number: str | None = None
     name: str
     industry: str
     size: str
@@ -104,7 +104,7 @@ class AccountDetailResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str
-    account_number: str
+    account_number: str | None = None
     name: str
     industry: str
     size: str

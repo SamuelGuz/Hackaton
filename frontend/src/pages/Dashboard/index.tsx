@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccounts } from "../../hooks/useAccounts";
 import { useI18n } from "../../context/I18nContext";
@@ -11,6 +11,7 @@ import type { SurfaceTone } from "../../components/SurfaceCard";
 import { Sparkline } from "../../components/Sparkline";
 import { FilterPillGroup } from "../../components/FilterPillGroup";
 import { humanizeI18n, formatArr, formatRenewal } from "../../utils/format";
+import { exportAccountsCsv, exportAccountsXlsx } from "../../utils/exportAccounts";
 import type { AccountFilter } from "../../api/accounts";
 
 const renewalToneClass: Record<"urgent" | "soon" | "normal", string> = {
@@ -55,6 +56,8 @@ const icons = {
   expand: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
   arr:    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
   search: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+  download: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  caret:    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
 };
 
 export default function Dashboard() {
@@ -62,12 +65,43 @@ export default function Dashboard() {
   const { t, lang } = useI18n();
   const [activeFilter, setActiveFilter] = useState<AccountFilter>("all");
   const [search, setSearch] = useState("");
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
   const { accounts, stats, loading, error, lastFetchedAt, refetch } = useAccounts(activeFilter, search);
 
-  const FILTERS: { label: string; value: AccountFilter }[] = [
-    { label: t("dash.filterAll"),    value: "all" },
-    { label: t("dash.filterRisk"),   value: "at_risk" },
-    { label: t("dash.filterExpand"), value: "expansion" },
+  // Cierra el menú de exportación al hacer click fuera o presionar Escape.
+  useEffect(() => {
+    if (!exportOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExportOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [exportOpen]);
+
+  const handleExport = (kind: "csv" | "xlsx") => {
+    if (accounts.length === 0) return;
+    if (kind === "csv") exportAccountsCsv(accounts, lang);
+    else exportAccountsXlsx(accounts, lang);
+    setExportOpen(false);
+  };
+
+  const FILTERS: { label: string; value: AccountFilter; count: number; dotClass?: string }[] = [
+    { label: t("dash.filterAll"),      value: "all",       count: stats.total },
+    { label: t("dash.filterCritical"), value: "critical",  count: stats.critical,  dotClass: "bg-red-400" },
+    { label: t("dash.filterRisk"),     value: "at_risk",   count: stats.atRisk,    dotClass: "bg-orange-400" },
+    { label: t("dash.filterStable"),   value: "stable",    count: stats.stable,    dotClass: "bg-yellow-400" },
+    { label: t("dash.filterHealthy"),  value: "healthy",   count: stats.healthy,   dotClass: "bg-green-400" },
+    { label: t("dash.filterExpand"),   value: "expanding", count: stats.expansion, dotClass: "bg-blue-400" },
   ];
 
   const syncTime =
@@ -78,7 +112,6 @@ export default function Dashboard() {
         })
       : "—";
 
-  const filtersDirty = activeFilter !== "all" || search.trim().length > 0;
   const hasSourceData = stats.total > 0;
   const filteredEmpty = !loading && !error && accounts.length === 0 && hasSourceData;
   const trulyEmpty = !loading && !error && accounts.length === 0 && !hasSourceData;
@@ -106,7 +139,7 @@ export default function Dashboard() {
             <p className="text-sm text-slate-400 max-w-3xl leading-relaxed border border-slate-800/80 rounded-xl px-4 py-3 bg-slate-900/40">
               <span className="text-indigo-300/90 font-medium">
                 {t("dash.insightLine", {
-                  risk: stats.atRisk,
+                  risk: stats.critical + stats.atRisk,
                   arr: formatArr(stats.arrAtRisk),
                 })}
               </span>
@@ -122,7 +155,7 @@ export default function Dashboard() {
         ) : (
           <>
             <StatCard label={t("dash.statTotal")} value={stats.total} accent="text-slate-100" icon={icons.total} sub={`${stats.total} ${t("dash.statActive")}`} tone="neutral" motionIndex={0} />
-            <StatCard label={t("dash.statRisk")} value={stats.atRisk} accent="text-rose-400" icon={icons.risk} sub={`${stats.total ? ((stats.atRisk / stats.total) * 100).toFixed(0) : 0}% ${t("dash.statRiskSub")}`} tone="rose" motionIndex={1} />
+            <StatCard label={t("dash.statRisk")} value={stats.critical + stats.atRisk} accent="text-rose-400" icon={icons.risk} sub={`${stats.total ? (((stats.critical + stats.atRisk) / stats.total) * 100).toFixed(0) : 0}% ${t("dash.statRiskSub")}`} tone="rose" motionIndex={1} />
             <StatCard label={t("dash.statExpand")} value={stats.expansion} accent="text-sky-400" icon={icons.expand} sub={t("dash.statExpandSub")} tone="sky" motionIndex={2} />
             <StatCard label={t("dash.statArr")} value={formatArr(stats.arrAtRisk)} accent="text-amber-400" icon={icons.arr} sub={t("dash.statArrSub")} tone="amber" motionIndex={3} />
           </>
@@ -137,42 +170,81 @@ export default function Dashboard() {
             value={activeFilter}
             onChange={setActiveFilter}
             options={FILTERS.map((f) => {
-              const count = f.value === "all" ? stats.total : f.value === "at_risk" ? stats.atRisk : stats.expansion;
               const active = activeFilter === f.value;
               return {
                 value: f.value,
-                label: f.label,
+                label: (
+                  <span className="flex items-center gap-1.5">
+                    {f.dotClass && (
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${f.dotClass}`} />
+                    )}
+                    {f.label}
+                  </span>
+                ),
                 suffix: (
                   <span
                     className={`text-[11px] px-1.5 py-0.5 rounded tabular-nums transition-colors duration-200 ${
                       active ? "bg-slate-900 text-slate-300" : "bg-slate-800 text-slate-500"
                     }`}
                   >
-                    {count}
+                    {f.count}
                   </span>
                 ),
               };
             })}
           />
-          {filtersDirty && (
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">{icons.search}</span>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("dash.searchPlaceholder")}
+              className="bg-slate-900/70 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/25 focus:bg-slate-900 w-72 transition-colors"
+            />
+          </div>
+          <div className="relative" ref={exportMenuRef}>
             <button
               type="button"
-              onClick={resetFilters}
-              className="text-xs font-semibold text-indigo-300/90 hover:text-indigo-200 border border-indigo-500/25 hover:border-indigo-400/40 rounded-lg px-3 py-2 bg-indigo-950/20 transition-colors"
+              onClick={() => setExportOpen((o) => !o)}
+              disabled={accounts.length === 0}
+              aria-haspopup="menu"
+              aria-expanded={exportOpen}
+              className="flex items-center gap-2 bg-slate-900/70 border border-slate-800 hover:border-indigo-500/40 hover:text-white rounded-lg px-3 py-2 text-sm text-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-slate-800"
+              title={accounts.length === 0 ? t("dash.exportEmpty") : undefined}
             >
-              {t("dash.resetFilters")}
+              <span className="text-slate-400">{icons.download}</span>
+              {t("dash.exportLabel")}
+              <span className={`text-slate-500 transition-transform ${exportOpen ? "rotate-180" : ""}`}>{icons.caret}</span>
             </button>
-          )}
-        </div>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">{icons.search}</span>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("dash.searchPlaceholder")}
-            className="bg-slate-900/70 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/25 focus:bg-slate-900 w-72 transition-colors"
-          />
+            {exportOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 mt-1 w-44 bg-slate-900 border border-slate-700/80 rounded-lg shadow-xl overflow-hidden z-20"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => handleExport("csv")}
+                  className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-800 transition-colors flex items-center justify-between"
+                >
+                  {t("dash.exportCsv")}
+                  <span className="text-[10px] text-slate-500 tabular-nums">{accounts.length}</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => handleExport("xlsx")}
+                  className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-800 transition-colors flex items-center justify-between border-t border-slate-800/80"
+                >
+                  {t("dash.exportXlsx")}
+                  <span className="text-[10px] text-slate-500 tabular-nums">{accounts.length}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -183,6 +255,8 @@ export default function Dashboard() {
             <table className="co-table text-sm">
           <thead>
             <tr>
+              <th className="text-right tabular-nums w-[2rem] min-w-[2rem] max-w-[2rem] px-1.5 align-middle">{t("dash.colIndex")}</th>
+              <th className="whitespace-nowrap">{t("dash.colAccountNumber")}</th>
               <th>{t("dash.colCompany")}</th>
               <th>{t("dash.colIndustryPlan")}</th>
               <th className="text-right">{t("dash.colArr")}</th>
@@ -193,11 +267,11 @@ export default function Dashboard() {
             </tr>
           </thead>
           <tbody>
-            {loading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
+            {loading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={9} />)}
 
             {error && (
               <tr>
-                <td colSpan={7} className="py-12 text-center align-middle">
+                <td colSpan={9} className="py-12 text-center align-middle">
                   <p className="text-sm text-rose-400 mb-4">Error: {error}</p>
                   <button
                     type="button"
@@ -212,7 +286,7 @@ export default function Dashboard() {
 
             {!loading && !error && trulyEmpty && (
               <tr>
-                <td colSpan={7} className="py-12 text-center align-middle">
+                <td colSpan={9} className="py-12 text-center align-middle">
                   <p className="text-base text-slate-400 mb-1">{t("global.noResults")}</p>
                   <p className="text-xs text-slate-500 mb-5">{t("global.tryFilter")}</p>
                   <button
@@ -228,7 +302,7 @@ export default function Dashboard() {
 
             {!loading && !error && filteredEmpty && (
               <tr>
-                <td colSpan={7} className="py-12 text-center align-middle">
+                <td colSpan={9} className="py-12 text-center align-middle">
                   <p className="text-base text-slate-400 mb-1">{t("global.noResults")}</p>
                   <p className="text-xs text-slate-500 mb-5">{t("global.tryFilter")}</p>
                   <div className="flex flex-wrap items-center justify-center gap-3">
@@ -253,7 +327,7 @@ export default function Dashboard() {
               </tr>
             )}
 
-            {!loading && !error && accounts.map((a) => {
+            {!loading && !error && accounts.map((a, idx) => {
               const renewal = formatRenewal(a.contractRenewalDate, t);
               return (
                 <tr
@@ -263,6 +337,10 @@ export default function Dashboard() {
                   onKeyDown={(e) => { if (e.key === "Enter") navigate(`/accounts/${a.id}`); }}
                   className="cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500/40 focus-visible:z-10 group"
                 >
+                  <td className="text-right tabular-nums text-[11px] text-slate-500 w-[2rem] min-w-[2rem] max-w-[2rem] px-1.5">{idx + 1}</td>
+                  <td className="tabular-nums text-xs text-slate-300 max-w-[9rem] whitespace-nowrap overflow-hidden text-ellipsis" title={a.accountNumber ?? undefined}>
+                    {a.accountNumber?.trim() ? a.accountNumber : "—"}
+                  </td>
                   <td>
                     <div className="flex items-center gap-3">
                       <CompanyAvatar name={a.name} />

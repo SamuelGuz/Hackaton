@@ -7,7 +7,7 @@ import { useToast } from "./Toast";
 import { useI18n } from "../context/I18nContext";
 import type { ChannelDelivery, Champion, InterventionChannel, InterventionRecommendation } from "../types";
 
-type Phase = "loading" | "ready" | "dispatching" | "done" | "error";
+type Phase = "loading" | "ready" | "dispatching" | "done" | "error" | "cooloff";
 
 const ALL_CHANNELS: InterventionChannel[] = ["email", "slack", "whatsapp", "voice_call"];
 
@@ -51,6 +51,7 @@ export function InterventionModal({ accountId, accountName, champion, onClose }:
   const { t } = useI18n();
   const [phase, setPhase] = useState<Phase>("loading");
   const [rec, setRec] = useState<InterventionRecommendation | null>(null);
+  const [cooloffMsg, setCooloffMsg] = useState("");
   const [message, setMessage] = useState("");
   const [recipient, setRecipient] = useState("");
   const [deliveries, setDeliveries] = useState<ChannelDelivery[]>(
@@ -60,21 +61,52 @@ export function InterventionModal({ accountId, accountName, champion, onClose }:
 
   useEffect(() => {
     let cancelled = false;
-    getIntervention(accountId)
-      .then((r) => {
+
+    async function load() {
+      try {
+        const r = await getIntervention(accountId);
         if (cancelled) return;
+        // eslint-disable-next-line no-console
+        console.debug("[InterventionModal] agent OK", {
+          interventionId: r.interventionId,
+          status: r.status,
+          requiresApproval: r.requiresApproval,
+          autoApproved: r.autoApproved,
+        });
         setRec(r);
         setMessage(r.messageBody);
         setRecipient(r.recipient || defaultRecipient(r.recommendedChannel, champion));
+        // Si requiere aprobación humana o el status es pending_approval, bloqueamos launch.
+        const needsApproval =
+          r?.status === "pending_approval" ||
+          r?.requiresApproval === true;
+        if (needsApproval) {
+          setCooloffMsg(t("modal.needsApprovalBody"));
+          setPhase("cooloff");
+          return;
+        }
         setPhase("ready");
-      })
-      .catch(() => {
+      } catch (err) {
         if (cancelled) return;
+        // Duck typing en lugar de instanceof — más robusto frente a HMR / dos copias del módulo.
+        const e = err as { status?: number; message?: string; name?: string } | null | undefined;
+        const status = e?.status;
+        // eslint-disable-next-line no-console
+        console.debug("[InterventionModal] agent ERROR", { name: e?.name, status, message: e?.message });
+        if (status === 409 || (e?.message ?? "").includes("status=pending_approval") || (e?.message ?? "").includes("last intervention")) {
+          setCooloffMsg(e?.message || t("modal.cooloffBody"));
+          setPhase("cooloff");
+          return;
+        }
         setPhase("error");
         toast.push(t("toast.recError"), "error");
-      });
+      }
+    }
+
+    load();
     return () => { cancelled = true; };
-  }, [accountId, champion, toast, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -86,19 +118,30 @@ export function InterventionModal({ accountId, accountName, champion, onClose }:
 
   async function launch() {
     if (!rec) return;
+    if (!rec.interventionId) {
+      toast.push(t("toast.interventionError"), "error");
+      return;
+    }
     setPhase("dispatching");
     setDeliveries(ALL_CHANNELS.map((channel) => ({ channel, status: "pending" })));
     try {
       await dispatchIntervention(
-        { channel: rec.recommendedChannel, recipient, messageBody: message },
+        {
+          interventionId: rec.interventionId,
+          channel: rec.recommendedChannel,
+          recipient,
+          messageBody: message,
+        },
         (next) => setDeliveries(next)
       );
       setPhase("done");
       toast.push(t("toast.interventionOk"), "success");
-    } catch {
+    } catch (err) {
       setDeliveries(ALL_CHANNELS.map((channel) => ({ channel, status: "pending" })));
       setPhase("ready");
-      toast.push(t("toast.interventionError"), "error");
+      const e = err as { message?: string } | null | undefined;
+      const msg = e?.message || t("toast.interventionError");
+      toast.push(msg, "error");
     }
   }
 
@@ -137,7 +180,11 @@ export function InterventionModal({ accountId, accountName, champion, onClose }:
                 {t("modal.title", { name: accountName })}
               </p>
               <h2 className="text-lg font-semibold text-white tracking-tight">
-                {phase === "done" ? t("modal.titleDone") : t("modal.titleReady")}
+                {phase === "done"
+                  ? t("modal.titleDone")
+                  : phase === "cooloff"
+                    ? t("modal.titleCooloff")
+                    : t("modal.titleReady")}
               </h2>
             </div>
             <button
@@ -178,6 +225,36 @@ export function InterventionModal({ accountId, accountName, champion, onClose }:
                 className="p-12 text-center text-rose-400 text-sm"
               >
                 {t("modal.noRec")}
+              </motion.div>
+            )}
+
+            {phase === "cooloff" && (
+              <motion.div
+                key="cooloff"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="p-8 text-center"
+              >
+                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-amber-500/15 flex items-center justify-center">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-300">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                </div>
+                <p className="text-sm font-semibold text-amber-200 mb-2">
+                  {t("modal.cooloffTitle")}
+                </p>
+                <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto mb-6">
+                  {cooloffMsg || t("modal.cooloffBody")}
+                </p>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg transition-colors"
+                >
+                  {t("modal.cooloffClose")}
+                </button>
               </motion.div>
             )}
           </AnimatePresence>

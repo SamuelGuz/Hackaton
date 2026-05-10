@@ -8,26 +8,20 @@ import type {
   ImportResponse,
 } from "../types";
 
-export type AccountFilter = "all" | "at_risk" | "expansion";
+export type AccountFilter = "all" | "critical" | "at_risk" | "stable" | "healthy" | "expanding";
 
 export async function getAccounts(filter: AccountFilter = "all"): Promise<AccountsResponse> {
   if (USE_MOCK) {
-    if (filter === "at_risk") {
+    if (filter !== "all") {
       const filtered = mockAccountsResponse.accounts.filter(
-        (a) => a.churnRiskScore >= 60
-      );
-      return { accounts: filtered, total: filtered.length };
-    }
-    if (filter === "expansion") {
-      const filtered = mockAccountsResponse.accounts.filter(
-        (a) => a.expansionScore >= 60
+        (a) => a.healthStatus === filter
       );
       return { accounts: filtered, total: filtered.length };
     }
     return mockAccountsResponse;
   }
 
-  const params = filter !== "all" ? `?health_status=${filter === "at_risk" ? "at_risk,critical" : "expanding"}` : "";
+  const params = filter !== "all" ? `?health_status=${filter}` : "";
   return apiFetch<AccountsResponse>(`/accounts${params}`);
 }
 

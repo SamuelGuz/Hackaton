@@ -47,18 +47,44 @@ export async function dispatchIntervention(
     return deliveries;
   }
 
-  const res = await apiFetch<{ dispatched: boolean; channels: ChannelDelivery[] }>(
-    "/dispatch-intervention",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        intervention_id: payload.interventionId,
-        channel: payload.channel,
-        recipient: payload.recipient,
-        message_body: payload.messageBody,
-        message_subject: payload.messageSubject,
-      }),
-    }
-  );
-  return res.channels;
+  // El backend solo despacha un canal a la vez y devuelve { intervention_id, status, channel, ... }
+  // Mostramos los 4 canales: el elegido en estado real + los demás como "no aplica" (queued).
+  const initial: ChannelDelivery[] = ALL_CHANNELS.map((channel) => ({
+    channel,
+    status: channel === payload.channel ? "sent" : "pending",
+  }));
+  onProgress?.([...initial]);
+
+  const res = await apiFetch<{
+    intervention_id?: string;
+    status: "dispatched" | "sent" | "delivered" | "failed";
+    channel: InterventionChannel;
+    error?: string;
+  }>("/dispatch-intervention", {
+    method: "POST",
+    body: JSON.stringify({
+      intervention_id: payload.interventionId,
+      channel: payload.channel,
+      recipient: payload.recipient,
+      message_body: payload.messageBody,
+      message_subject: payload.messageSubject,
+    }),
+  });
+
+  // Mapear el resultado del backend al estado UI del canal elegido.
+  const finalStatus: ChannelDelivery["status"] =
+    res.status === "failed"     ? "failed"
+    : res.status === "delivered" ? "delivered"
+    : "delivered"; // "sent"/"dispatched" → consideramos entregado para el demo
+
+  const final: ChannelDelivery[] = ALL_CHANNELS.map((channel) => ({
+    channel,
+    status: channel === payload.channel ? finalStatus : "pending",
+  }));
+  onProgress?.([...final]);
+
+  if (res.status === "failed") {
+    throw new Error(res.error || "dispatch_failed");
+  }
+  return final;
 }

@@ -1,4 +1,6 @@
+import logging
 import os
+import traceback
 
 from dotenv import load_dotenv
 
@@ -9,10 +11,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+logger = logging.getLogger(__name__)
+
 from backend.automations.channel_router import router as dispatch_router
 from backend.routes.accounts import router as accounts_router
 from backend.routes.accounts_import import router as accounts_import_router
 from backend.routes.agents import router as agents_router
+from backend.routes.interventions import router as interventions_router
 from backend.routes.playbooks import router as playbooks_router
 
 app = FastAPI(title="Churn Oracle API")
@@ -43,6 +48,7 @@ app.include_router(accounts_import_router, prefix="/api/v1")
 app.include_router(accounts_router, prefix="/api/v1")
 app.include_router(agents_router, prefix="/api/v1")
 app.include_router(dispatch_router, prefix="/api/v1")
+app.include_router(interventions_router, prefix="/api/v1")
 app.include_router(playbooks_router, prefix="/api/v1")
 
 
@@ -70,5 +76,21 @@ async def validation_exception_handler(_request, exc: RequestValidationError) ->
             "error": "validation_error",
             "message": "Request validation failed",
             "details": {"errors": exc.errors()},
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request, exc: Exception) -> JSONResponse:
+    """Catch-all for uncaught exceptions. Without this the response bypasses
+    CORSMiddleware (no Access-Control-Allow-Origin) and the browser blocks it."""
+    tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    logger.error("Unhandled exception on %s %s\n%s", request.method, request.url.path, tb)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "internal_error",
+            "message": f"{type(exc).__name__}: {exc}",
+            "details": {},
         },
     )

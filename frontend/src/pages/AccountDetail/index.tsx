@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAccount } from "../../hooks/useAccount";
+import { useInterventions } from "../../hooks/useInterventions";
 import { useI18n } from "../../context/I18nContext";
 import { CompanyAvatar } from "../../components/CompanyAvatar";
 import { RiskBadge } from "../../components/RiskBadge";
@@ -28,9 +29,20 @@ function MetricBlock({ label, value, sub }: { label: string; value: string; sub?
 
 export default function AccountDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { account, events, loading, error } = useAccount(id);
+  const { interventions: accountInterventions } = useInterventions(id ? { accountId: id } : {});
   const { t } = useI18n();
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Una intervención está "activa" si todavía no terminó su ciclo (no resuelta, no rechazada).
+  // status pending_approval, pending, sent, delivered, opened → bloquean nuevas.
+  const activeIntervention = useMemo(() => {
+    return accountInterventions.find((i) =>
+      ["pending_approval", "pending", "sent", "delivered", "opened"].includes(i.status)
+    ) ?? null;
+  }, [accountInterventions]);
+  const hasActiveIntervention = activeIntervention !== null;
 
   const severityClass = (sev: string) =>
     sev === "high"   ? "bg-rose-500/15 text-rose-300 border-rose-500/30" :
@@ -82,6 +94,11 @@ export default function AccountDetail() {
               <h1 className="text-2xl font-bold text-white tracking-tight">{account.name}</h1>
               <RiskBadge status={account.health.status} />
             </div>
+            {account.accountNumber?.trim() ? (
+              <p className="text-xs text-slate-500 tabular-nums mb-1">
+                {t("dash.colAccountNumber")}: <span className="text-slate-300">{account.accountNumber}</span>
+              </p>
+            ) : null}
             <p className="text-sm text-slate-400">
               {humanizeI18n(account.industry, t)} · {humanizeI18n(account.size, t)} · {humanizeI18n(account.geography, t)} · CSM <span className="text-slate-300">{account.csm.name}</span>
             </p>
@@ -182,19 +199,45 @@ export default function AccountDetail() {
           </SurfaceCard>
 
           {/* CTA */}
-          <button
-            onClick={() => setModalOpen(true)}
-            className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gradient-to-br from-rose-500 to-orange-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-500/20 hover:from-rose-400 hover:to-orange-400 hover:shadow-rose-500/40 transition-all"
-          >
-            <svg {...SVG} strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
-            {t("detail.ctaButton")}
-          </button>
+          {hasActiveIntervention ? (
+            <div className="w-full">
+              <button
+                disabled
+                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-amber-500/15 border border-amber-500/30 text-amber-200 text-sm font-semibold rounded-xl cursor-not-allowed"
+              >
+                <svg {...SVG} strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                {t("detail.ctaActiveTitle")}
+              </button>
+              <p className="text-[11px] text-center text-amber-300/80 mt-2 leading-relaxed">
+                {t("detail.ctaActiveBody", {
+                  status: t(`inv.status.${activeIntervention!.status}` as string) || activeIntervention!.status,
+                })}
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate(`/interventions?account=${account.id}`)}
+                className="mt-2 w-full text-[11px] text-indigo-300 hover:text-indigo-200 font-medium transition-colors"
+              >
+                {t("detail.ctaActiveLink")} →
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => setModalOpen(true)}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gradient-to-br from-rose-500 to-orange-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-500/20 hover:from-rose-400 hover:to-orange-400 hover:shadow-rose-500/40 transition-all"
+              >
+                <svg {...SVG} strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
+                {t("detail.ctaButton")}
+              </button>
 
-          <p className="text-[10px] text-center text-slate-500">
-            {daysToRenewal > 0
-              ? `${daysToRenewal} ${t("detail.renewalUrgent")}`
-              : t("detail.renewalExpired")}
-          </p>
+              <p className="text-[10px] text-center text-slate-500">
+                {daysToRenewal > 0
+                  ? `${daysToRenewal} ${t("detail.renewalUrgent")}`
+                  : t("detail.renewalExpired")}
+              </p>
+            </>
+          )}
         </aside>
       </div>
 

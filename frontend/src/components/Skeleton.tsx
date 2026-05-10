@@ -1,7 +1,7 @@
-export function SkeletonRow() {
+export function SkeletonRow({ cols = 7 }: { cols?: number } = {}) {
   return (
     <tr>
-      {Array.from({ length: 7 }).map((_, i) => (
+      {Array.from({ length: cols }).map((_, i) => (
         <td key={i}>
           <div className="h-3 bg-slate-700/35 rounded-md animate-pulse" />
         </td>

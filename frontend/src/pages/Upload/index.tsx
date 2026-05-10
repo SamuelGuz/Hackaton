@@ -331,6 +331,9 @@ export default function Upload() {
                 <table className="co-table co-table-sm co-table-head-plain text-xs">
                 <thead>
                   <tr>
+                    <th className="text-right tabular-nums w-[2rem] min-w-[2rem] max-w-[2rem] px-1.5 normal-case tracking-normal align-top">
+                      <div className="text-slate-300 text-[11px] font-semibold">{t("dash.colIndex")}</div>
+                    </th>
                     {Object.entries(mapping).filter(([, v]) => v !== "ignore").map(([header, field]) => (
                       <th key={header}>
                         <div className="text-slate-300 normal-case tracking-normal text-[11px] font-semibold">{fieldLabel(field as FieldKey, t)}</div>
@@ -342,6 +345,7 @@ export default function Upload() {
                 <tbody>
                   {parsed.rows.slice(0, 5).map((row, i) => (
                     <tr key={i}>
+                      <td className="text-right tabular-nums text-[11px] text-slate-500 w-[2rem] min-w-[2rem] max-w-[2rem] px-1.5">{i + 1}</td>
                       {Object.entries(mapping).filter(([, v]) => v !== "ignore").map(([header]) => (
                         <td key={header} className="text-slate-300 truncate max-w-[200px]">
                           {String(row[header] ?? "—") || "—"}

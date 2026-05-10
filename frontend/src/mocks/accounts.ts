@@ -5,6 +5,7 @@ export const mockAccountsResponse: AccountsResponse = {
   accounts: [
     {
       id: "a1b2c3d4-0001-0000-0000-000000000001",
+      accountNumber: "CUST-0001",
       name: "Acme Corp",
       industry: "fintech",
       size: "mid_market",
@@ -19,6 +20,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0002-0000-0000-000000000002",
+      accountNumber: "CUST-0002",
       name: "BetaCo",
       industry: "ecommerce",
       size: "smb",
@@ -33,6 +35,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0003-0000-0000-000000000003",
+      accountNumber: "CUST-0003",
       name: "GammaInc",
       industry: "healthtech",
       size: "smb",
@@ -47,6 +50,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0004-0000-0000-000000000004",
+      accountNumber: "CUST-0004",
       name: "DeltaSoft",
       industry: "logistics",
       size: "enterprise",
@@ -61,6 +65,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0005-0000-0000-000000000005",
+      accountNumber: "CUST-0005",
       name: "EpsilonHR",
       industry: "professional_services",
       size: "mid_market",
@@ -75,6 +80,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0006-0000-0000-000000000006",
+      accountNumber: "CUST-0006",
       name: "ZetaMedia",
       industry: "media",
       size: "startup",
@@ -89,6 +95,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0007-0000-0000-000000000007",
+      accountNumber: "CUST-0007",
       name: "EtaRetail",
       industry: "ecommerce",
       size: "mid_market",
@@ -103,6 +110,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0008-0000-0000-000000000008",
+      accountNumber: "CUST-0008",
       name: "ThetaBank",
       industry: "fintech",
       size: "enterprise",
@@ -117,6 +125,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0009-0000-0000-000000000009",
+      accountNumber: "CUST-0009",
       name: "IotaEdu",
       industry: "edtech",
       size: "smb",
@@ -131,6 +140,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0010-0000-0000-000000000010",
+      accountNumber: "CUST-0010",
       name: "KappaLogix",
       industry: "logistics",
       size: "mid_market",
@@ -145,6 +155,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0011-0000-0000-000000000011",
+      accountNumber: "CUST-0011",
       name: "LambdaReal",
       industry: "real_estate",
       size: "smb",
@@ -159,6 +170,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0012-0000-0000-000000000012",
+      accountNumber: "CUST-0012",
       name: "MuHealth",
       industry: "healthtech",
       size: "mid_market",
@@ -173,6 +185,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0013-0000-0000-000000000013",
+      accountNumber: "CUST-0013",
       name: "NuManufac",
       industry: "manufacturing",
       size: "enterprise",
@@ -187,6 +200,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0014-0000-0000-000000000014",
+      accountNumber: "CUST-0014",
       name: "XiHospital",
       industry: "hospitality",
       size: "smb",
@@ -201,6 +215,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0015-0000-0000-000000000015",
+      accountNumber: "CUST-0015",
       name: "OmicronTech",
       industry: "professional_services",
       size: "startup",
@@ -215,6 +230,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0016-0000-0000-000000000016",
+      accountNumber: "CUST-0016",
       name: "PiFinance",
       industry: "fintech",
       size: "smb",
@@ -229,6 +245,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0017-0000-0000-000000000017",
+      accountNumber: "CUST-0017",
       name: "RhoCommerce",
       industry: "ecommerce",
       size: "mid_market",
@@ -243,6 +260,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0018-0000-0000-000000000018",
+      accountNumber: "CUST-0018",
       name: "SigmaEdu",
       industry: "edtech",
       size: "startup",
@@ -257,6 +275,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0019-0000-0000-000000000019",
+      accountNumber: "CUST-0019",
       name: "TauLogistics",
       industry: "logistics",
       size: "smb",
@@ -271,6 +290,7 @@ export const mockAccountsResponse: AccountsResponse = {
     },
     {
       id: "a1b2c3d4-0020-0000-0000-000000000020",
+      accountNumber: "CUST-0020",
       name: "UpsilonCare",
       industry: "healthtech",
       size: "enterprise",
@@ -288,6 +308,7 @@ export const mockAccountsResponse: AccountsResponse = {
 
 export const mockAccountDetail: AccountDetail = {
   id: "a1b2c3d4-0001-0000-0000-000000000001",
+  accountNumber: "CUST-0001",
   name: "Acme Corp",
   industry: "fintech",
   size: "mid_market",

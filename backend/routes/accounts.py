@@ -152,6 +152,24 @@ def _normalize_top_signals(raw: Any, *, churn_risk: int, expansion_score: int) -
     return out[:20]
 
 
+def _resolved_account_number(row: dict[str, Any]) -> str:
+    """
+    Devuelve account_number persistido o uno estable derivado del id (filas viejas sin valor).
+    Formato alineado al seed: ACC-{año_alta}-{10_hex_del_uuid}.
+    """
+    raw = row.get("account_number")
+    if raw is not None:
+        s = str(raw).strip()
+        if s:
+            return s
+    aid = str(row.get("id") or "").replace("-", "").upper()
+    if not aid:
+        return "ACC-PENDING"
+    su = _parse_ts(row.get("signup_date"))
+    year = su.year if su else datetime.now(timezone.utc).year
+    return f"ACC-{year}-{aid[:10]}"
+
+
 def _snippet(text: str | None, max_len: int = 160) -> str:
     if not text:
         return ""
@@ -439,7 +457,7 @@ def list_accounts(
         accounts.append(
             AccountListItem(
                 id=str(row["id"]),
-                account_number=str(row.get("account_number") or ""),
+                account_number=_resolved_account_number(row),
                 name=str(row["name"]),
                 industry=str(row["industry"]),
                 size=str(row["size"]),
@@ -768,7 +786,7 @@ def get_account(account_id: str) -> AccountDetailResponse:
 
     return AccountDetailResponse(
         id=str(row["id"]),
-        account_number=str(row.get("account_number") or ""),
+        account_number=_resolved_account_number(row),
         name=str(row["name"]),
         industry=str(row["industry"]),
         size=str(row["size"]),
