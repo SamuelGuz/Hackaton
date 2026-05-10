@@ -291,14 +291,15 @@ export function InterventionModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      onClick={() => phase !== "dispatching" && onClose()}
     >
       <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="intervention-modal-title"
         className="co-surface-tile-bg border border-slate-800/90 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85)] ring-1 ring-indigo-500/12"
         initial={{ opacity: 0, scale: 0.94, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.38, ease: panelEase }}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="pointer-events-none absolute inset-0 sc-card-noise opacity-[0.04] rounded-2xl" aria-hidden />
 
@@ -308,7 +309,7 @@ export function InterventionModal({
               <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold mb-0.5">
                 {t("modal.title", { name: accountName })}
               </p>
-              <h2 className="text-lg font-semibold text-white tracking-tight">
+              <h2 id="intervention-modal-title" className="text-lg font-semibold text-white tracking-tight">
                 {phase === "done"
                   ? t("modal.titleDone")
                   : phase === "cooloff"
