@@ -2,6 +2,7 @@
 
 Esta guía documenta los endpoints nuevos para:
 - crear cuentas individuales
+- consultar historial de salud (`account_health_history`, solo lectura)
 - importar cuentas en lote
 - importar `usage_events`, `tickets` y `conversations` en endpoints separados
 
@@ -19,6 +20,61 @@ curl -X POST "http://localhost:8000/api/v1/accounts" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: TU_API_KEY" \
   -d '{}'
+```
+
+## Health history (solo lectura)
+
+Endpoints alineados con `CONTRACTS.md` §2.1. No requieren `X-API-Key` (mismo criterio que `GET /accounts`).
+
+### `GET /accounts/health-history`
+
+Lista paginada global con filtros opcionales:
+
+| Parámetro      | Descripción |
+|----------------|-------------|
+| `account_id`   | UUID de cuenta |
+| `health_status`| `critical`, `at_risk`, `stable`, `healthy`, `expanding` |
+| `from`         | `computed_at` mayor o igual (ISO 8601) |
+| `to`           | `computed_at` menor o igual (ISO 8601) |
+| `limit`        | default 100, máx 500 |
+| `offset`       | default 0 |
+
+### `GET /accounts/{account_id}/health-history`
+
+Misma respuesta y filtros que el global (excepto `account_id` en query), acotado a la cuenta. **404** si `account_id` no existe.
+
+### Respuesta (forma común)
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "account_id": "uuid",
+      "health_status": "stable",
+      "churn_risk_score": 25,
+      "expansion_score": 30,
+      "top_signals": [],
+      "predicted_churn_reason": null,
+      "crystal_ball_confidence": null,
+      "computed_at": "2026-05-10T12:00:00+00:00",
+      "computed_by_version": "account-create-v1"
+    }
+  ],
+  "total": 1,
+  "limit": 100,
+  "offset": 0
+}
+```
+
+### cURL (ejemplos)
+
+```bash
+# Global, primera página
+curl -s "http://localhost:8000/api/v1/accounts/health-history?limit=50&offset=0"
+
+# Por cuenta y rango de fechas
+curl -s "http://localhost:8000/api/v1/accounts/1f42f72c-6f32-40e8-94a1-e880a7987f66/health-history?from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z"
 ```
 
 ## 1) Crear cuenta individual

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -136,6 +136,32 @@ class TimelineResponse(BaseModel):
 
     account_id: str
     events: list[TimelineEvent]
+
+
+class AccountHealthHistoryItem(BaseModel):
+    """Fila de account_health_history (CONTRACTS.md §2.1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    account_id: str
+    health_status: str
+    churn_risk_score: int
+    expansion_score: int
+    top_signals: Any | None = None
+    predicted_churn_reason: str | None = None
+    crystal_ball_confidence: float | None = None
+    computed_at: datetime
+    computed_by_version: str
+
+
+class AccountHealthHistoryListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[AccountHealthHistoryItem]
+    total: int
+    limit: int
+    offset: int
 
 
 IndustryLiteral = Literal[

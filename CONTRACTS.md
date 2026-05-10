@@ -668,6 +668,53 @@ Timeline de eventos para el Health Dashboard.
 }
 ```
 
+#### `GET /accounts/health-history`
+
+Lista paginada de filas de `account_health_history` (solo lectura). Útil para dashboards globales o depuración.
+
+**Query params:**
+
+- `account_id` (opcional): filtrar por cuenta
+- `health_status` (opcional): filtrar por estado (`critical`, `at_risk`, `stable`, `healthy`, `expanding`)
+- `from` (opcional): `computed_at >= from` (ISO 8601, TIMESTAMPTZ UTC)
+- `to` (opcional): `computed_at <= to` (ISO 8601, TIMESTAMPTZ UTC)
+- `limit` (default 100, máx 500)
+- `offset` (default 0)
+
+Orden: `computed_at` descendente.
+
+**Response 200:**
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "account_id": "uuid",
+      "health_status": "at_risk",
+      "churn_risk_score": 73,
+      "expansion_score": 12,
+      "top_signals": [],
+      "predicted_churn_reason": "…",
+      "crystal_ball_confidence": 0.84,
+      "computed_at": "2026-05-09T17:30:00Z",
+      "computed_by_version": "crystal-ball-v1.2"
+    }
+  ],
+  "total": 1240,
+  "limit": 100,
+  "offset": 0
+}
+```
+
+#### `GET /accounts/{account_id}/health-history`
+
+Historial de salud append-only para una cuenta. Misma forma de respuesta que el listado global, con `items` filtrados a esa cuenta.
+
+**Query params:** `health_status`, `from`, `to`, `limit`, `offset` (mismos significados que arriba; no se expone `account_id` en query porque va en la ruta).
+
+**Response 404** si la cuenta no existe.
+
 ---
 
 ### 2.2 Agents (Persona 2)
@@ -1663,5 +1710,5 @@ Persona 1 marca esto cuando todo lo siguiente está hecho:
 
 ---
 
-**Última actualización:** Columna y API `champion_phone` / `champion.phone` (celular E.164 del champion) en `accounts` y §2.1. — Persona 1. Cambios anteriores: `account_number` en `accounts` e índice único; `csm_team`, `nps_responses`, `account_health_history`, `system_settings`, flujo de aprobación humana en `interventions` y webhook inbound de respuesta del cliente (3.6).
+**Última actualización:** Endpoints de solo lectura `GET /accounts/health-history` y `GET /accounts/{account_id}/health-history` (§2.1). Cambios anteriores: columna y API `champion_phone` / `champion.phone` en `accounts`; `account_number` e índice único; `csm_team`, `nps_responses`, `account_health_history`, `system_settings`, flujo de aprobación humana en `interventions` y webhook inbound (3.6).
 **Próxima revisión:** Después del kickoff, cuando los 4 lo lean y propongan ajustes. Revisión obligatoria de Persona 2 (campo `requires_approval` en output del Intervention Engine + nuevo tool `get_nps_history` opcional) y Persona 3 (sección 3.6 customer-response webhook).

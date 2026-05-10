@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.routes.schemas_accounts import (
     AccountDetailResponse,
+    AccountHealthHistoryItem,
+    AccountHealthHistoryListResponse,
     AccountListItem,
     AccountsListResponse,
     ChampionDetail,
@@ -31,6 +33,8 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 _TIMELINE_PER_SOURCE = 100
 _TIMELINE_MAX_EVENTS = 400
 _DEFAULT_TS = datetime(1970, 1, 1, tzinfo=timezone.utc)
+_HEALTH_HISTORY_DEFAULT_LIMIT = 100
+_HEALTH_HISTORY_MAX_LIMIT = 500
 
 
 def _http_error(status: int, code: str, message: str, details: dict[str, Any] | None = None) -> HTTPException:
@@ -155,6 +159,83 @@ def _snippet(text: str | None, max_len: int = 160) -> str:
     if len(t) <= max_len:
         return t
     return t[: max_len - 1] + "…"
+
+
+def _computed_at_iso(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
+
+
+def _apply_health_history_filters(
+    q: Any,
+    *,
+    account_id: str | None,
+    health_status: str | None,
+    computed_from: datetime | None,
+    computed_to: datetime | None,
+) -> Any:
+    if account_id:
+        q = q.eq("account_id", account_id.strip())
+    if health_status:
+        q = q.eq("health_status", health_status)
+    if computed_from is not None:
+        q = q.gte("computed_at", _computed_at_iso(computed_from))
+    if computed_to is not None:
+        q = q.lte("computed_at", _computed_at_iso(computed_to))
+    return q
+
+
+def _health_history_row_to_item(row: dict[str, Any]) -> AccountHealthHistoryItem:
+    conf_raw = row.get("crystal_ball_confidence")
+    conf: float | None
+    if conf_raw is None:
+        conf = None
+    else:
+        conf = float(conf_raw)
+    ts = _parse_ts(row.get("computed_at")) or _DEFAULT_TS
+    return AccountHealthHistoryItem(
+        id=str(row["id"]),
+        account_id=str(row["account_id"]),
+        health_status=str(row.get("health_status") or "stable"),
+        churn_risk_score=_int(row.get("churn_risk_score")),
+        expansion_score=_int(row.get("expansion_score")),
+        top_signals=row.get("top_signals"),
+        predicted_churn_reason=(
+            str(row["predicted_churn_reason"]) if row.get("predicted_churn_reason") else None
+        ),
+        crystal_ball_confidence=conf,
+        computed_at=ts,
+        computed_by_version=str(row.get("computed_by_version") or ""),
+    )
+
+
+def _fetch_health_history_page(
+    *,
+    account_id: str | None,
+    health_status: str | None,
+    computed_from: datetime | None,
+    computed_to: datetime | None,
+    limit: int,
+    offset: int,
+) -> tuple[list[AccountHealthHistoryItem], int]:
+    client = get_client()
+    sel = client.table("account_health_history").select(
+        "id,account_id,churn_risk_score,expansion_score,health_status,top_signals,"
+        "predicted_churn_reason,crystal_ball_confidence,computed_at,computed_by_version",
+        count="exact",
+    )
+    sel = _apply_health_history_filters(
+        sel,
+        account_id=account_id,
+        health_status=health_status,
+        computed_from=computed_from,
+        computed_to=computed_to,
+    )
+    res = sel.order("computed_at", desc=True).range(offset, offset + limit - 1).execute()
+    total = int(res.count) if res.count is not None else 0
+    items = [_health_history_row_to_item(r) for r in (res.data or [])]
+    return items, total
 
 
 def _collect_matching_account_ids(
@@ -385,6 +466,27 @@ def list_accounts(
     return AccountsListResponse(accounts=accounts, total=total)
 
 
+@router.get("/health-history", response_model=AccountHealthHistoryListResponse)
+def list_account_health_history_global(
+    account_id: str | None = Query(default=None, description="Filter by account UUID"),
+    health_status: str | None = Query(default=None),
+    computed_from: datetime | None = Query(default=None, alias="from"),
+    computed_to: datetime | None = Query(default=None, alias="to"),
+    limit: int = Query(default=_HEALTH_HISTORY_DEFAULT_LIMIT, ge=1, le=_HEALTH_HISTORY_MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
+) -> AccountHealthHistoryListResponse:
+    aid = account_id.strip() if account_id else None
+    items, total = _fetch_health_history_page(
+        account_id=aid,
+        health_status=health_status,
+        computed_from=computed_from,
+        computed_to=computed_to,
+        limit=limit,
+        offset=offset,
+    )
+    return AccountHealthHistoryListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
 @router.get("/{account_id}/timeline", response_model=TimelineResponse)
 def get_account_timeline(account_id: str) -> TimelineResponse:
     client = get_client()
@@ -564,6 +666,30 @@ def get_account_timeline(account_id: str) -> TimelineResponse:
     events = events[:_TIMELINE_MAX_EVENTS]
 
     return TimelineResponse(account_id=account_id, events=events)
+
+
+@router.get("/{account_id}/health-history", response_model=AccountHealthHistoryListResponse)
+def get_account_health_history(
+    account_id: str,
+    health_status: str | None = Query(default=None),
+    computed_from: datetime | None = Query(default=None, alias="from"),
+    computed_to: datetime | None = Query(default=None, alias="to"),
+    limit: int = Query(default=_HEALTH_HISTORY_DEFAULT_LIMIT, ge=1, le=_HEALTH_HISTORY_MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
+) -> AccountHealthHistoryListResponse:
+    client = get_client()
+    exists = client.table("accounts").select("id").eq("id", account_id).limit(1).execute()
+    if not (exists.data or []):
+        raise _http_error(404, "not_found", "Account not found", {"account_id": account_id})
+    items, total = _fetch_health_history_page(
+        account_id=account_id,
+        health_status=health_status,
+        computed_from=computed_from,
+        computed_to=computed_to,
+        limit=limit,
+        offset=offset,
+    )
+    return AccountHealthHistoryListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.get("/{account_id}", response_model=AccountDetailResponse)
