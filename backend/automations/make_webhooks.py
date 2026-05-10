@@ -150,6 +150,22 @@ def send_slack(
     )
 
 
+def _default_callback_url() -> str:
+    """Backend callback URL for n8n/Make to POST inbound replies / delivery acks."""
+    base = os.environ.get("API_BASE_URL", "").rstrip("/")
+    if not base:
+        return ""
+    return f"{base}/api/v1/dispatch-intervention/callback"
+
+
+def _default_inbound_url() -> str:
+    """Backend inbound URL for n8n to POST cliente -> Claude conversation turns."""
+    base = os.environ.get("API_BASE_URL", "").rstrip("/")
+    if not base:
+        return ""
+    return f"{base}/api/v1/dispatch-intervention/inbound-message"
+
+
 def send_whatsapp(
     intervention_id: str,
     to_phone: str,
@@ -157,15 +173,20 @@ def send_whatsapp(
     message: str,
     account_id: str,
     account_name: str,
+    callback_url: str | None = None,
+    inbound_url: str | None = None,
 ) -> dict[str, Any]:
-    return _post(
-        os.environ["MAKE_WEBHOOK_WHATSAPP"],
-        {
-            "intervention_id": intervention_id,
-            "to_phone": to_phone,
-            "to_name": to_name,
-            "message": message,
-            "account_id": account_id,
-            "account_name": account_name,
-        },
-    )
+    payload: dict[str, Any] = {
+        "intervention_id": intervention_id,
+        "to_phone": to_phone,
+        "to_name": to_name,
+        "message": message,
+        "account_id": account_id,
+        "account_name": account_name,
+        # n8n necesita estas URLs para callbackear de vuelta al backend
+        # (delivery ack + inbound replies). Si API_BASE_URL no está seteado
+        # los campos quedan vacíos pero el send sigue funcionando.
+        "callback_url": callback_url if callback_url is not None else _default_callback_url(),
+        "inbound_url": inbound_url if inbound_url is not None else _default_inbound_url(),
+    }
+    return _post(os.environ["MAKE_WEBHOOK_WHATSAPP"], payload)

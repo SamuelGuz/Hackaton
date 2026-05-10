@@ -296,6 +296,41 @@ export default function Upload() {
         </motion.div>
       )}
 
+      {/* Manual entry CTA — shown only in idle phase */}
+      {phase === "idle" && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          className="flex items-center gap-4"
+        >
+          <div className="flex-1 h-px bg-slate-800" />
+          <span className="text-xs text-slate-600 shrink-0">{t("up.or")}</span>
+          <div className="flex-1 h-px bg-slate-800" />
+        </motion.div>
+      )}
+      {phase === "idle" && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          className="flex justify-center"
+        >
+          <button
+            onClick={() => navigate("/accounts/new")}
+            className="group flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-700 bg-slate-900/60 hover:border-indigo-500/50 hover:bg-indigo-500/[0.06] text-slate-400 hover:text-indigo-200 text-sm font-medium transition-all duration-200"
+          >
+            <svg {...SVG} width="14" height="14" className="text-indigo-400 group-hover:text-indigo-300 transition-colors">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <line x1="19" y1="8" x2="19" y2="14"/>
+              <line x1="22" y1="11" x2="16" y2="11"/>
+            </svg>
+            {t("up.manualBtn")}
+          </button>
+        </motion.div>
+      )}
+
       {/* Map */}
       {phase === "map" && parsed && (
         <>

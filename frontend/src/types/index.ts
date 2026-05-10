@@ -76,6 +76,9 @@ export interface AccountSummary {
   currentNpsScore?: number | null;
   currentNpsCategory?: "detractor" | "passive" | "promoter" | null;
   lastNpsAt?: string | null;
+  // Timestamp técnico de la fila en BD (ISO UTC). Usado para ordenar la lista
+  // del dashboard alineada con el batch agent (que procesa `created_at desc`).
+  createdAt?: string | null;
   // Campos extra que solo viven cuando el usuario importa un Excel
   geography?: string;
   seatsPurchased?: number;
@@ -295,6 +298,38 @@ export interface ChannelDispatchResult {
   /** voice_call: Twilio Call SID para seguimiento de estado/hangup. */
   callSid?: string;
   toPhone?: string;
+}
+
+export interface CreateAccountPayload {
+  account_number?: string | null;
+  name: string;
+  industry: string;
+  size: string;
+  geography: string;
+  plan: string;
+  arr_usd: number;
+  seats_purchased: number;
+  seats_active: number;
+  signup_date: string;
+  contract_renewal_date: string;
+  champion_name: string;
+  champion_email: string;
+  champion_role: string;
+  champion_phone?: string | null;
+  csm_id: string;
+  health?: {
+    churn_risk_score?: number | null;
+    expansion_score?: number | null;
+    health_status?: HealthStatus | null;
+    crystal_ball_reasoning?: string | null;
+  };
+}
+
+export interface CreateAccountResponse {
+  inserted: boolean;
+  skipped: boolean;
+  account_id: string;
+  message: string;
 }
 
 export interface MultiDispatchResponse extends DispatchSession {
