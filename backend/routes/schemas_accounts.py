@@ -41,6 +41,8 @@ class AccountListItem(BaseModel):
     # ordenar las cuentas con el mismo criterio que el batch agent
     # (`backend.agents.batch_processor.submit_batch` usa `created_at desc`).
     created_at: datetime | None = None
+    # True cuando la cuenta tiene al menos una intervención registrada.
+    has_intervention: bool = False
 
 
 class AccountsListResponse(BaseModel):

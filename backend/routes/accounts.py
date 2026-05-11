@@ -310,6 +310,20 @@ def _fetch_accounts_rows(account_ids: list[str]) -> dict[str, dict[str, Any]]:
     return out
 
 
+def _fetch_accounts_with_interventions(account_ids: list[str]) -> set[str]:
+    """Devuelve IDs de cuentas que tienen >=1 intervención."""
+    if not account_ids:
+        return set()
+    client = get_client()
+    rows = (
+        client.table("interventions")
+        .select("account_id")
+        .in_("account_id", account_ids)
+        .execute()
+    )
+    return {str(r["account_id"]) for r in (rows.data or []) if r.get("account_id")}
+
+
 def _create_health_records(
     *,
     client: Any,
@@ -436,6 +450,7 @@ def list_accounts(
     total = len(matching)
     page_ids = matching[offset : offset + limit]
     rows_by_id = _fetch_accounts_rows(page_ids)
+    with_interventions = _fetch_accounts_with_interventions(page_ids)
     page_ids = sorted(page_ids, key=lambda aid: str((rows_by_id.get(aid) or {}).get("name") or "").lower())
 
     accounts: list[AccountListItem] = []
@@ -479,6 +494,7 @@ def list_accounts(
                 current_nps_category=row.get("current_nps_category"),
                 last_nps_at=_parse_ts(row.get("last_nps_at")),
                 created_at=_parse_ts(row.get("created_at")),
+                has_intervention=str(row["id"]) in with_interventions,
             )
         )
 

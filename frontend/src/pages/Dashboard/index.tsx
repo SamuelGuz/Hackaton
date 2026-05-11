@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAccounts } from "../../hooks/useAccounts";
+import type { AccountInterventionFilter } from "../../hooks/useAccounts";
 import { useBatchAgents } from "../../hooks/useBatchAgents";
 import { useI18n } from "../../context/I18nContext";
 import { BatchProgressPanel } from "../../components/BatchProgressPanel";
@@ -70,6 +71,8 @@ export default function Dashboard() {
   const toast = useToast();
   const [activeFilter, setActiveFilter] = useState<AccountFilter>("all");
   const [accountNumberFilter, setAccountNumberFilter] = useState<string>("all");
+  const [interventionFilter, setInterventionFilter] =
+    useState<AccountInterventionFilter>("all");
   const [search, setSearch] = useState("");
   const [exportOpen, setExportOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -79,7 +82,7 @@ export default function Dashboard() {
   const runningAll = batch.isRunning;
 
   const { accounts, accountNumbers, stats, loading, error, lastFetchedAt, refetch } =
-    useAccounts(activeFilter, search, accountNumberFilter);
+    useAccounts(activeFilter, search, accountNumberFilter, interventionFilter);
 
   async function handleRunAll() {
     setConfirmOpen(false);
@@ -169,6 +172,11 @@ export default function Dashboard() {
     ...accountNumbers.map((n) => ({ value: n, label: n })),
   ];
 
+  const INTERVENTION_OPTIONS: SelectOption<AccountInterventionFilter>[] = [
+    { value: "all", label: t("dash.filterInterventionAll") },
+    { value: "without_intervention", label: t("dash.filterInterventionWithout") },
+  ];
+
   const syncTime =
     lastFetchedAt != null
       ? lastFetchedAt.toLocaleTimeString(lang === "es" ? "es" : "en-US", {
@@ -184,6 +192,7 @@ export default function Dashboard() {
   const resetFilters = () => {
     setActiveFilter("all");
     setAccountNumberFilter("all");
+    setInterventionFilter("all");
     setSearch("");
   };
 
@@ -267,6 +276,13 @@ export default function Dashboard() {
             searchable
             searchPlaceholder={t("dash.filterAccountSearch")}
             emptyText={t("dash.filterAccountEmpty")}
+          />
+          <Select
+            label={t("dash.filterIntervention")}
+            value={interventionFilter}
+            onChange={setInterventionFilter}
+            options={INTERVENTION_OPTIONS}
+            minWidthClass="min-w-[14rem]"
           />
         </div>
         <div className="flex items-center gap-2">

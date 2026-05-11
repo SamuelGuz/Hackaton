@@ -13,10 +13,13 @@ export interface AccountStats {
   arrAtRisk: number;
 }
 
+export type AccountInterventionFilter = "all" | "without_intervention";
+
 export function useAccounts(
   filter: AccountFilter,
   search: string,
   accountNumber: string = "all",
+  interventionFilter: AccountInterventionFilter = "all",
 ) {
   const { customAccounts } = useDataContext();
   const [all, setAll] = useState<AccountSummary[]>([]);
@@ -84,6 +87,9 @@ export function useAccounts(
     if (accountNumber !== "all") {
       list = list.filter((a) => (a.accountNumber ?? "") === accountNumber);
     }
+    if (interventionFilter === "without_intervention") {
+      list = list.filter((a) => !a.hasIntervention);
+    }
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -103,7 +109,7 @@ export function useAccounts(
       if (tb !== ta) return tb - ta;
       return b.churnRiskScore - a.churnRiskScore;
     });
-  }, [all, filter, search, accountNumber]);
+  }, [all, filter, search, accountNumber, interventionFilter]);
 
   const accountNumbers = useMemo(() => {
     let source: AccountSummary[];
