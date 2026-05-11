@@ -17,12 +17,16 @@ RUN pip install --upgrade pip \
 COPY frontend/package*.json /app/frontend/
 RUN cd /app/frontend && npm ci
 
+COPY demosaas/package*.json /app/demosaas/
+RUN cd /app/demosaas && npm ci
+
 COPY backend /app/backend
 COPY frontend /app/frontend
+COPY demosaas /app/demosaas
 COPY entrypoint.sh /app/entrypoint.sh
 
 RUN chmod +x /app/entrypoint.sh
 
-EXPOSE 8000 5173
+EXPOSE 8000 5173 5174
 
 ENTRYPOINT ["/app/entrypoint.sh"]
