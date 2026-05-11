@@ -202,17 +202,11 @@ export function InterventionModal({
       return;
     }
 
-    const channelsPayload: ChannelDispatchInput[] = channelsToSend.map((channel) => {
-      const recipient =
-        channel === "voice_call"
-          ? (champion.phone && champion.phone !== "—" ? champion.phone : recipients[channel])
-          : recipients[channel];
-      return {
-        channel,
-        recipient,
-        messageSubject: rec.messageSubject ?? null,
-      };
-    });
+    const channelsPayload: ChannelDispatchInput[] = channelsToSend.map((channel) => ({
+      channel,
+      recipient: recipients[channel],
+      messageSubject: rec.messageSubject ?? null,
+    }));
 
     setPhase("dispatching");
     setDeliveries(channelsToSend.map((channel) => ({ channel, status: "pending" })));
