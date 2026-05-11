@@ -12,7 +12,7 @@ export default defineConfig({
   envPrefix: ["VITE_", "demo_saas_VITE_"],
   plugins: [react(), tailwindcss()],
   server: {
-    allowedHosts: ["hack.dark-army.lat"],
+    allowedHosts: ["hack.dark-army.lat", "demosaas.dark-army.lat"],
     proxy: {
       "/api/v1": {
         target: "https://backend.dark-army.lat",
