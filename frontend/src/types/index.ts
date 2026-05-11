@@ -79,6 +79,8 @@ export interface AccountSummary {
   // Timestamp técnico de la fila en BD (ISO UTC). Usado para ordenar la lista
   // del dashboard alineada con el batch agent (que procesa `created_at desc`).
   createdAt?: string | null;
+  // True cuando existe al menos una intervención para la cuenta.
+  hasIntervention?: boolean;
   // Campos extra que solo viven cuando el usuario importa un Excel
   geography?: string;
   seatsPurchased?: number;
