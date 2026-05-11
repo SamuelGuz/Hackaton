@@ -79,6 +79,71 @@ const TRANSLATIONS = {
   "inv.trigger.renewal_upcoming":{ es: "Renovación próxima",               en: "Renewal upcoming" },
   "inv.trigger.low_adoption":    { es: "Baja adopción",                    en: "Low adoption" },
 
+  // Dashboard: ejecutar agente por lotes + panel de progreso
+  "inv.runAll": {
+    es: "Ejecutar agente en lote",
+    en: "Run batch agent",
+  },
+  "inv.runAllRunning": {
+    es: "Procesando cuentas…",
+    en: "Processing accounts…",
+  },
+  "inv.runAllConfirm": {
+    es: "Se encolará un lote de cuentas: Crystal Ball, detección de expansión e intervención con envío por los canales configurados. Puede tardar varios minutos. ¿Continuar?",
+    en: "A batch of accounts will be queued: Crystal Ball, expansion scoring, and intervention with dispatch on configured channels. This may take several minutes. Continue?",
+  },
+  "inv.runAllCancel": { es: "Cancelar", en: "Cancel" },
+  "inv.runAllConfirmBtn": { es: "Ejecutar", en: "Run" },
+  "inv.runAllError": {
+    es: "No se pudo iniciar el proceso por lotes.",
+    en: "Could not start the batch process.",
+  },
+  "inv.batchToast.done": {
+    es: "Lote terminado: {done}/{total} cuentas OK.",
+    en: "Batch finished: {done}/{total} accounts OK.",
+  },
+  "inv.batchToast.partial": {
+    es: "Lote terminado con incidencias: {done} OK, {failed} fallidas.",
+    en: "Batch finished with issues: {done} OK, {failed} failed.",
+  },
+  "inv.batchToast.failed": {
+    es: "El proceso por lotes falló.",
+    en: "The batch process failed.",
+  },
+  "inv.batchPanelTitle": {
+    es: "Progreso del agente por lotes",
+    en: "Batch agent progress",
+  },
+  "inv.batchClose": { es: "Cerrar", en: "Close" },
+  "inv.batchInProgress": {
+    es: "Esperá a que termine antes de cerrar.",
+    en: "Wait until the batch finishes before closing.",
+  },
+  "inv.batchSummary": {
+    es: "Resumen: {done} correctas · {failed} fallidas · {skipped} intervenciones omitidas",
+    en: "Summary: {done} succeeded · {failed} failed · {skipped} interventions skipped",
+  },
+  "inv.batchOverall.queued": { es: "En cola", en: "Queued" },
+  "inv.batchOverall.running": { es: "En ejecución", en: "Running" },
+  "inv.batchOverall.done": { es: "Completado", en: "Completed" },
+  "inv.batchOverall.partial": { es: "Completado con errores", en: "Completed with errors" },
+  "inv.batchOverall.failed": { es: "Fallido", en: "Failed" },
+  "inv.batchStep.crystal_ball": { es: "Crystal Ball", en: "Crystal Ball" },
+  "inv.batchStep.expansion": { es: "Expansión", en: "Expansion" },
+  "inv.batchStep.intervention": { es: "Intervención", en: "Intervention" },
+  "inv.batchChannel.email": { es: "Email", en: "Email" },
+  "inv.batchChannel.whatsapp": { es: "WhatsApp", en: "WhatsApp" },
+  "inv.batchDispatch.sent": { es: "Enviado", en: "Sent" },
+  "inv.batchDispatch.failed": { es: "Error", en: "Failed" },
+  "inv.batchDispatch.skipped": {
+    es: "Omitido (sin contacto)",
+    en: "Skipped (no contact)",
+  },
+  "inv.batchDispatch.tooltipError": {
+    es: "Error: {error}",
+    en: "Error: {error}",
+  },
+
   // Health status
   "status.critical":  { es: "Crítico",    en: "Critical" },
   "status.at_risk":   { es: "En riesgo",  en: "At Risk" },
